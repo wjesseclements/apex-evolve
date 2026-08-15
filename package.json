@@ -12,8 +12,8 @@
     "preview": "vite preview",
     "typecheck": "tsc --noEmit -p tsconfig.json",
     "lint": "eslint .",
-    "format": "prettier --write \"src/**/*.{ts,tsx,json,css}\"",
-    "format:check": "prettier --check \"src/**/*.{ts,tsx,json,css}\"",
+    "format": "prettier --write \"src/**/*.{ts,tsx,json,css}\" \"scripts/**/*.ts\"",
+    "format:check": "prettier --check \"src/**/*.{ts,tsx,json,css}\" \"scripts/**/*.ts\"",
     "test": "vitest",
     "check:purity": "bash scripts/check-sim-purity.sh",
     "check": "npm run typecheck && npm run lint && npm run format:check && npm run check:purity && npm run test -- --run && npm run build"
