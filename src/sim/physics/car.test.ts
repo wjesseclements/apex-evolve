@@ -23,7 +23,22 @@ const HAND: PhysicsConfig = {
   carWidth: 2,
 };
 
-/** Pinned final state of the determinism trajectory (see the golden test below). */
+/**
+ * Frozen config for the golden regression pin below. Deliberately NOT
+ * DEFAULT_PHYSICS: tuning the live constants must not require re-pinning; a
+ * change to the *model* (stepCar) will still be caught.
+ */
+const GOLDEN_CFG: PhysicsConfig = {
+  dt: 1 / 60,
+  vMax: 30,
+  accel: 12,
+  drag: 0.3,
+  steerRate: 3.0,
+  carLength: 4.0,
+  carWidth: 1.8,
+};
+
+/** Pinned final state of the determinism trajectory under GOLDEN_CFG. */
 const GOLDEN = {
   x: 5.732648069503768,
   y: 3.4171097494180334,
@@ -193,7 +208,7 @@ describe('stepCar — determinism (same inputs ⇒ same trajectory)', () => {
     }
   });
 
-  it('golden final state after 1200 ticks with DEFAULT_PHYSICS (regression pin)', () => {
+  it('golden final state after 1200 ticks with GOLDEN_CFG (regression pin)', () => {
     // Pinned from the first implementation. If this changes, the physics
     // model changed — update deliberately, never casually.
     //
@@ -201,7 +216,7 @@ describe('stepCar — determinism (same inputs ⇒ same trajectory)', () => {
     // across JS engines (macOS/arm64 Node 26 and Linux/x64 Node 22 differed in
     // the last two bits of y after 1200 ticks). Determinism is guaranteed
     // within one engine — that is what the bit-identical test above pins.
-    const s = trajectory(DEFAULT_PHYSICS, 1200).at(-1);
+    const s = trajectory(GOLDEN_CFG, 1200).at(-1);
     if (!s) throw new Error('empty trajectory');
     expect(s.x).toBeCloseTo(GOLDEN.x, 9);
     expect(s.y).toBeCloseTo(GOLDEN.y, 9);

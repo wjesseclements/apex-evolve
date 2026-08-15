@@ -27,14 +27,14 @@ export interface PhysicsConfig {
  * reported at each slice's demo gate.
  *
  * With these numbers: terminal speed (accel/drag) = 40 m/s > vMax, so vMax is
- * reachable in ~4.6 s from rest; minimum turn radius = 30/3 = 10 m.
+ * reachable in ~4.6 s from rest; minimum turn radius = 30/2.5 = 12 m.
  */
 export const DEFAULT_PHYSICS: PhysicsConfig = {
   dt: 1 / 60,
   vMax: 30,
   accel: 12,
   drag: 0.3,
-  steerRate: 3.0,
+  steerRate: 2.5,
   carLength: 4.0,
   carWidth: 1.8,
 };
