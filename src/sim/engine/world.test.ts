@@ -4,7 +4,15 @@ import type { CarControls } from '../physics/car.ts';
 import { SQUARE } from '../testing/fixtures.ts';
 import { buildTrack } from '../track/track.ts';
 import { TRAINING_TRACK } from '../track/tracks.ts';
-import { createWorld, resetWorld, stepWorld, type World } from './world.ts';
+import { lapsOf } from '../track/progress.ts';
+import {
+  allCarsDead,
+  createWorld,
+  isEpisodeOver,
+  resetWorld,
+  stepWorld,
+  type World,
+} from './world.ts';
 
 const square = buildTrack(SQUARE);
 const FULL_THROTTLE: CarControls = { steering: 0, throttle: 1 };
@@ -142,5 +150,55 @@ describe('stepWorld', () => {
     // car should die past x = 80 but before x = 80 + 30 + 6 (outer edge apex).
     expect(car.state.x).toBeGreaterThan(80);
     expect(car.state.x).toBeLessThan(118);
+  });
+});
+
+describe('episode timer', () => {
+  it('the world freezes once time reaches cfg.episode.seconds: no further ticks, cars stop moving', () => {
+    const cfg = { ...DEFAULT_SIM, episode: { seconds: 1 } };
+    let w = createWorld(square, cfg);
+    for (let t = 0; t < 100; t++) w = stepWorld(w, () => FULL_THROTTLE);
+    expect(w.tick).toBe(60);
+    expect(w.time).toBeCloseTo(1, 12);
+    expect(isEpisodeOver(w)).toBe(true);
+    const frozen = stepWorld(w, () => FULL_THROTTLE);
+    expect(frozen).toBe(w); // same object: a no-op
+    expect(w.cars[0]!.alive).toBe(true);
+    expect(w.cars[0]!.state.x).toBeGreaterThan(5);
+  });
+
+  it('is not over before the deadline; reset starts a fresh episode', () => {
+    const cfg = { ...DEFAULT_SIM, episode: { seconds: 1 } };
+    let w = createWorld(square, cfg);
+    for (let t = 0; t < 59; t++) w = stepWorld(w, () => FULL_THROTTLE);
+    expect(isEpisodeOver(w)).toBe(false);
+    w = stepWorld(w, () => FULL_THROTTLE);
+    expect(isEpisodeOver(w)).toBe(true);
+    const r = resetWorld(w);
+    expect(isEpisodeOver(r)).toBe(false);
+    expect(r.tick).toBe(0);
+  });
+
+  it('allCarsDead reflects the population', () => {
+    let w = createWorld(square, DEFAULT_SIM, 2);
+    expect(allCarsDead(w)).toBe(false);
+    for (let t = 0; t < 1200 && !allCarsDead(w); t++) w = stepWorld(w, () => FULL_THROTTLE);
+    expect(allCarsDead(w)).toBe(true);
+  });
+});
+
+describe('progress in the world', () => {
+  it('a car spawns with progress 0 and accumulates it while driving; a crashed car keeps its final progress', () => {
+    let w = createWorld(square, DEFAULT_SIM);
+    expect(w.cars[0]!.progress.progress).toBe(0);
+    for (let t = 0; t < 240; t++) w = stepWorld(w, () => FULL_THROTTLE);
+    const p = w.cars[0]!.progress.progress;
+    expect(p).toBeCloseTo(w.cars[0]!.state.x, 6); // straight along segment 0: progress = x
+    for (let t = 0; t < 1200 && w.cars[0]!.alive; t++) w = stepWorld(w, () => FULL_THROTTLE);
+    const atCrash = w.cars[0]!.progress.progress;
+    expect(atCrash).toBeGreaterThan(p);
+    w = run(w, FULL_THROTTLE, 60);
+    expect(w.cars[0]!.progress.progress).toBe(atCrash);
+    expect(lapsOf(w.cars[0]!.progress, w.checkpoints)).toBe(0);
   });
 });

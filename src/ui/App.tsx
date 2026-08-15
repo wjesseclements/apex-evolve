@@ -26,8 +26,8 @@ export function App() {
       <header className="app__header">
         <h1>apex-evolve</h1>
         <p>
-          Slice 1 — drive the car with the arrow keys and watch its 7 sensor rays. Neuroevolution
-          arrives in later slices.
+          Slice 1 — drive the car with the arrow keys; watch its 7 sensor rays and lap progress.
+          Neuroevolution arrives in later slices.
         </p>
       </header>
       <div className="app__body">

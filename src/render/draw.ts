@@ -7,6 +7,8 @@
 import type { Car, World } from '../sim/engine/world.ts';
 import type { Vec2 } from '../sim/math/vec2.ts';
 import { carCorners } from '../sim/physics/car.ts';
+import { pointAtArc, type Checkpoints } from '../sim/track/checkpoints.ts';
+import { nextCheckpointIndex } from '../sim/track/progress.ts';
 import type { Track } from '../sim/track/track.ts';
 import { worldToScreen, type Camera } from './camera.ts';
 
@@ -32,6 +34,8 @@ export const COLORS = {
   rayNear: '#ff5c5c',
   rayFar: '#7CFC00',
   rayMiss: 'rgba(230,230,230,0.35)',
+  checkpoint: 'rgba(230,230,230,0.22)',
+  checkpointNext: '#ffd166',
 } as const;
 
 export function renderWorld(
@@ -45,11 +49,47 @@ export function renderWorld(
   ctx.fillStyle = COLORS.background;
   ctx.fillRect(0, 0, width, height);
   drawTrack(ctx, world.track, cam, opts);
+  if (opts.debug) drawCheckpoints(ctx, world, cam);
   for (const car of world.cars) drawCar(ctx, car, world, cam, opts);
   if (opts.showSensors) {
     const driven = world.cars[0];
     if (driven) drawSensors(ctx, driven, world, cam);
   }
+}
+
+/**
+ * Debug overlay: a short tick across the centerline at every checkpoint, with
+ * the driven car's NEXT checkpoint highlighted, so progress accounting can be
+ * checked by eye.
+ */
+export function drawCheckpoints(ctx: CanvasRenderingContext2D, world: World, cam: Camera): void {
+  const cps: Checkpoints = world.checkpoints;
+  const track = world.track;
+  const driven = world.cars[0];
+  const next = driven ? nextCheckpointIndex(driven.progress, cps) : -1;
+  ctx.save();
+  for (let i = 0; i < cps.count; i++) {
+    const arc = cps.arcs[i];
+    if (arc === undefined) continue;
+    const c = pointAtArc(track, arc);
+    const ahead = pointAtArc(track, arc + 0.5);
+    // Perpendicular to the local direction of travel, ±(width/4) either side.
+    let dx = ahead.x - c.x;
+    let dy = ahead.y - c.y;
+    const len = Math.hypot(dx, dy) || 1;
+    dx /= len;
+    dy /= len;
+    const h = track.width / 4;
+    const a = worldToScreen(cam, { x: c.x + dy * h, y: c.y - dx * h });
+    const b = worldToScreen(cam, { x: c.x - dy * h, y: c.y + dx * h });
+    ctx.strokeStyle = i === next ? COLORS.checkpointNext : COLORS.checkpoint;
+    ctx.lineWidth = i === next ? 2.5 : 1;
+    ctx.beginPath();
+    ctx.moveTo(a.x, a.y);
+    ctx.lineTo(b.x, b.y);
+    ctx.stroke();
+  }
+  ctx.restore();
 }
 
 /**

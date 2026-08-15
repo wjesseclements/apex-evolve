@@ -48,6 +48,8 @@ export interface Track {
   readonly rightEdge: readonly Vec2[];
   /** Length of segment i (centerline[i] → centerline[i+1 mod n]), meters. */
   readonly segmentLengths: readonly number[];
+  /** Arc length from centerline[0] to centerline[i] along the loop, meters (segmentStart[0] = 0). */
+  readonly segmentStart: readonly number[];
   /** Total centerline length, meters. */
   readonly totalLength: number;
   /** Where cars start: centerline[0], facing along segment 0. */
@@ -153,6 +155,13 @@ export function buildTrack(data: TrackData): Track {
     if (p.y > maxY) maxY = p.y;
   }
 
+  const segmentStart: number[] = [];
+  let acc = 0;
+  for (const len of segmentLengths) {
+    segmentStart.push(acc);
+    acc += len;
+  }
+
   const first = at(centerline, 0);
   const d0 = at(dirs, 0);
   return {
@@ -162,7 +171,8 @@ export function buildTrack(data: TrackData): Track {
     leftEdge,
     rightEdge,
     segmentLengths,
-    totalLength: segmentLengths.reduce((s, l) => s + l, 0),
+    segmentStart,
+    totalLength: acc,
     start: { x: first.x, y: first.y, heading: atan2(d0.y, d0.x) },
     bounds: { minX, minY, maxX, maxY },
   };
