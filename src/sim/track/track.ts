@@ -18,6 +18,7 @@
  * ring exactly. This is what makes the collision test localizable (collision.ts).
  */
 
+import { atan2, hypot2 } from '../math/dmath.ts';
 import { leftNormal, normalize, sub, type Vec2 } from '../math/vec2.ts';
 
 /** Shape of the hand-authored track JSON. */
@@ -118,7 +119,7 @@ export function buildTrack(data: TrackData): Track {
     const a = at(centerline, i);
     const b = at(centerline, (i + 1) % n);
     const d = sub(b, a);
-    const len = Math.hypot(d.x, d.y);
+    const len = hypot2(d.x, d.y);
     if (len === 0) throw new Error(`track: duplicate consecutive centerline points at ${i}`);
     dirs.push({ x: d.x / len, y: d.y / len });
     segmentLengths.push(len);
@@ -162,7 +163,7 @@ export function buildTrack(data: TrackData): Track {
     rightEdge,
     segmentLengths,
     totalLength: segmentLengths.reduce((s, l) => s + l, 0),
-    start: { x: first.x, y: first.y, heading: Math.atan2(d0.y, d0.x) },
+    start: { x: first.x, y: first.y, heading: atan2(d0.y, d0.x) },
     bounds: { minX, minY, maxX, maxY },
   };
 }

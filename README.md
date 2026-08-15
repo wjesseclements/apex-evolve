@@ -29,11 +29,21 @@ npm run dev        # Vite dev server
 npm run check      # typecheck + lint + format + purity + tests + build (what CI runs)
 ```
 
+## Determinism
+
+Same seed ⇒ the same run, **bit-for-bit, on every JavaScript engine**. `sim/`
+never calls `Math.sin/cos/exp/…` (engines are allowed to — and do — differ in
+the last bits); it uses its own fdlibm-derived kernels in
+`src/sim/math/dmath.ts` built from IEEE-754 basic arithmetic only. Exact golden
+pins in the tests are checked on macOS/arm64 and Linux/x64 CI. See
+[docs/CONVENTIONS.md](docs/CONVENTIONS.md#determinism-cross-engine-bit-identity).
+
 ## Layout
 
 ```
-src/sim/     pure, headless simulation — no DOM, no timers, no Math.random
+src/sim/     pure, headless simulation — no DOM, no timers, no Math.random, no Math.sin/cos/…
   config.ts    every physics constant, typed and documented with units
+  math/        vec2 helpers + dmath.ts (deterministic sin/cos/atan2/exp/tanh)
   physics/     arcade car model (stepCar), body corners
   track/       track JSON → mitered edges; localized nearest-segment + collision
   engine/      World: fixed-timestep stepWorld over N cars, crash = frozen

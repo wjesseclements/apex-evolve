@@ -32,6 +32,18 @@ const SIM_BANNED_GLOBALS = [
   message: `sim/ is pure and headless: '${name}' is not allowed (CLAUDE.md hard rule 2).`,
 }));
 
+/**
+ * Math functions whose results are engine-dependent (ECMA-262 only requires
+ * "implementation-approximated" values). sim/ must use src/sim/math/dmath.ts.
+ * Allowed: sqrt (hardware IEEE, correctly rounded everywhere), abs, floor,
+ * ceil, round, trunc, sign, min, max, fround, PI, and friends.
+ */
+const SIM_BANNED_MATH = [
+  'sin', 'cos', 'tan', 'asin', 'acos', 'atan', 'atan2',
+  'sinh', 'cosh', 'tanh', 'asinh', 'acosh', 'atanh',
+  'exp', 'expm1', 'log', 'log2', 'log10', 'log1p', 'pow', 'hypot', 'cbrt',
+];
+
 export default tseslint.config(
   { ignores: ['dist', 'coverage', 'node_modules'] },
 
@@ -132,6 +144,27 @@ export default tseslint.config(
         { assertionStyle: 'never' },
       ],
       '@typescript-eslint/no-non-null-assertion': 'error',
+      // Transcendentals are not bit-identical across JS engines; sim/ uses
+      // src/sim/math/dmath.ts (deterministic fdlibm-derived kernels) instead.
+      // Test files may call Math.* as the reference to compare against.
+      'no-restricted-properties': [
+        'error',
+        {
+          object: 'Math',
+          property: 'random',
+          message: 'Determinism is sacred: use the injected seeded PRNG (CLAUDE.md hard rule 1).',
+        },
+        {
+          object: 'Date',
+          property: 'now',
+          message: 'sim/ must not read wall-clock time (CLAUDE.md hard rule 2/3).',
+        },
+        ...SIM_BANNED_MATH.map((property) => ({
+          object: 'Math',
+          property,
+          message: `Math.${property} is not deterministic across engines: use sim/math/dmath.ts.`,
+        })),
+      ],
     },
   },
 );
