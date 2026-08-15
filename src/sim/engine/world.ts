@@ -1,6 +1,6 @@
 /**
  * Fixed-timestep world: the track plus the cars on it. `stepWorld` advances
- * exactly one tick of `cfg.dt` and is a pure function of its inputs — the
+ * exactly one tick of `cfg.physics.dt` and is a pure function of its inputs — the
  * frame loop in ui/ decides how many ticks to run per frame; nothing in here
  * knows about wall-clock time or rendering.
  *
@@ -8,7 +8,7 @@
  * of cars so the Slice 2 population engine reuses this unchanged.
  */
 
-import type { PhysicsConfig } from '../config.ts';
+import type { SimConfig } from '../config.ts';
 import {
   NEUTRAL_CONTROLS,
   createCarState,
@@ -16,6 +16,7 @@ import {
   type CarControls,
   type CarState,
 } from '../physics/car.ts';
+import { senseCar, type SensorReading } from '../sensors/sensors.ts';
 import { carCollides } from '../track/collision.ts';
 import type { Track } from '../track/track.ts';
 
@@ -29,11 +30,17 @@ export interface Car {
   readonly crashedAtTick: number | null;
   /** Nearest centerline segment last tick — hint for the localized collision search. */
   readonly segmentHint: number;
+  /**
+   * Sensor reading taken at the END of the tick that produced `state` (or at
+   * spawn). This is the observation a driver uses to choose the NEXT tick's
+   * controls. Frozen (dead) cars keep their last reading.
+   */
+  readonly sensors: SensorReading;
 }
 
 export interface World {
   readonly track: Track;
-  readonly cfg: PhysicsConfig;
+  readonly cfg: SimConfig;
   readonly cars: readonly Car[];
   /** Number of ticks stepped since creation/reset. */
   readonly tick: number;
@@ -42,20 +49,22 @@ export interface World {
 }
 
 /** A car at rest at the track's start pose. */
-export function spawnCar(track: Track): Car {
+export function spawnCar(track: Track, cfg: SimConfig): Car {
   const { x, y, heading } = track.start;
+  const state = createCarState(x, y, heading);
   return {
-    state: createCarState(x, y, heading),
+    state,
     controls: NEUTRAL_CONTROLS,
     alive: true,
     crashedAtTick: null,
     segmentHint: 0,
+    sensors: senseCar(track, state, 0, cfg),
   };
 }
 
-export function createWorld(track: Track, cfg: PhysicsConfig, carCount = 1): World {
+export function createWorld(track: Track, cfg: SimConfig, carCount = 1): World {
   const cars: Car[] = [];
-  for (let i = 0; i < carCount; i++) cars.push(spawnCar(track));
+  for (let i = 0; i < carCount; i++) cars.push(spawnCar(track, cfg));
   return { track, cfg, cars, tick: 0, time: 0 };
 }
 
@@ -69,21 +78,19 @@ export function resetWorld(world: World): World {
  * A car that leaves the track this tick keeps the state that put it there —
  * so it renders touching the wall — and is marked dead.
  */
-export function stepCarOnTrack(
-  car: Car,
-  controls: CarControls,
-  track: Track,
-  cfg: PhysicsConfig,
-): Car {
+export function stepCarOnTrack(car: Car, controls: CarControls, track: Track, cfg: SimConfig): Car {
   if (!car.alive) return car;
-  const state = stepCar(car.state, controls, cfg);
-  const hit = carCollides(track, state, cfg, car.segmentHint);
+  const state = stepCar(car.state, controls, cfg.physics);
+  const hit = carCollides(track, state, cfg.physics, car.segmentHint);
   return {
     state,
     controls,
     alive: !hit.collided,
     crashedAtTick: hit.collided ? null : car.crashedAtTick,
     segmentHint: hit.segment,
+    // A car that just died keeps its previous (on-track) reading; sensing from
+    // an off-track origin would report all-zero rays.
+    sensors: hit.collided ? car.sensors : senseCar(track, state, hit.segment, cfg),
   };
 }
 
@@ -100,5 +107,5 @@ export function stepWorld(
     const next = stepCarOnTrack(car, controlsFor(i, car), world.track, world.cfg);
     return next.alive || !car.alive ? next : { ...next, crashedAtTick: tick };
   });
-  return { ...world, cars, tick, time: tick * world.cfg.dt };
+  return { ...world, cars, tick, time: tick * world.cfg.physics.dt };
 }

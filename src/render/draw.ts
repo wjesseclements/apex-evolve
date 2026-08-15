@@ -13,6 +13,8 @@ import { worldToScreen, type Camera } from './camera.ts';
 export interface RenderOptions {
   /** Colour left/right edges differently and label them, draw the car's heading ray. */
   readonly debug: boolean;
+  /** Draw sensor rays (from the car centre to each ray's end point) on the driven car. */
+  readonly showSensors: boolean;
 }
 
 export const COLORS = {
@@ -27,6 +29,9 @@ export const COLORS = {
   carDead: '#8a2c2c',
   centerline: '#3c404a',
   debugText: '#ffd166',
+  rayNear: '#ff5c5c',
+  rayFar: '#7CFC00',
+  rayMiss: 'rgba(230,230,230,0.35)',
 } as const;
 
 export function renderWorld(
@@ -41,6 +46,56 @@ export function renderWorld(
   ctx.fillRect(0, 0, width, height);
   drawTrack(ctx, world.track, cam, opts);
   for (const car of world.cars) drawCar(ctx, car, world, cam, opts);
+  if (opts.showSensors) {
+    const driven = world.cars[0];
+    if (driven) drawSensors(ctx, driven, world, cam);
+  }
+}
+
+/**
+ * Sensor rays for one car: a line from the car centre to each ray's end point,
+ * red→green by normalized distance, with a dot at the wall hit; rays that
+ * reach max range without a hit are drawn faint. Rays are read from the car's
+ * stored SensorReading — no geometry is recomputed here.
+ */
+export function drawSensors(
+  ctx: CanvasRenderingContext2D,
+  car: Car,
+  world: World,
+  cam: Camera,
+): void {
+  const range = world.cfg.sensors.range;
+  const c = worldToScreen(cam, car.state);
+  ctx.save();
+  ctx.lineWidth = 1.5;
+  for (const ray of car.sensors.rays) {
+    const e = worldToScreen(cam, ray);
+    const f = Math.min(ray.distance / range, 1);
+    ctx.strokeStyle = ray.hit ? mixColor(COLORS.rayNear, COLORS.rayFar, f) : COLORS.rayMiss;
+    ctx.beginPath();
+    ctx.moveTo(c.x, c.y);
+    ctx.lineTo(e.x, e.y);
+    ctx.stroke();
+    if (ray.hit) {
+      ctx.fillStyle = ctx.strokeStyle;
+      ctx.beginPath();
+      ctx.arc(e.x, e.y, 3, 0, Math.PI * 2);
+      ctx.fill();
+    }
+  }
+  ctx.restore();
+}
+
+/** Linear blend of two #rrggbb colours (f = 0 → a, f = 1 → b). */
+function mixColor(a: string, b: string, f: number): string {
+  const pa = parseInt(a.slice(1), 16);
+  const pb = parseInt(b.slice(1), 16);
+  const ch = (shift: number) => {
+    const va = (pa >> shift) & 0xff;
+    const vb = (pb >> shift) & 0xff;
+    return Math.round(va + (vb - va) * f);
+  };
+  return `rgb(${ch(16)}, ${ch(8)}, ${ch(0)})`;
 }
 
 function polyline(
@@ -156,7 +211,7 @@ export function drawCar(
   cam: Camera,
   opts: RenderOptions,
 ): void {
-  const [fl, fr, rr, rl] = carCorners(car.state, world.cfg);
+  const [fl, fr, rr, rl] = carCorners(car.state, world.cfg.physics);
   const pts = [fl, fr, rr, rl].map((p) => worldToScreen(cam, p));
   const [sfl, sfr, srr, srl] = pts;
   if (!sfl || !sfr || !srr || !srl) return;
