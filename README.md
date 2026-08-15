@@ -4,17 +4,28 @@ Neuroevolution racing in the browser: a population of cars, each driven by a
 tiny neural network, learns a 2D race track through a genetic algorithm written
 from scratch — no ML libraries, no backpropagation.
 
-**Status:** Slice 0 — scaffold + keyboard-drivable car with the arcade physics
-model and edge collision. No learning yet. See [SLICES.md](SLICES.md) for the
-build plan and [SPEC.md](SPEC.md) for the design.
+**Status:** Slice 1 in progress — keyboard-drivable car with the arcade
+physics model, edge collision, and the 7-ray sensors that will feed the neural
+network. No learning yet. See [SLICES.md](SLICES.md) for the build plan and
+[SPEC.md](SPEC.md) for the design.
 
 ## Try it
 
 Arrow keys drive the car: <kbd>↑</kbd> throttle, <kbd>↓</kbd> brake,
 <kbd>←</kbd>/<kbd>→</kbd> steer. <kbd>R</kbd> resets after a crash,
-<kbd>D</kbd> toggles the debug overlay (left edge red, right edge blue, heading
-arrow, car's left side dotted). Touching a track edge kills the car for the rest
-of the run.
+<kbd>S</kbd> toggles the sensor rays, <kbd>D</kbd> toggles the debug overlay
+(left edge red, right edge blue, heading arrow, car's left side dotted).
+Touching a track edge kills the car for the rest of the run.
+
+## Sensors
+
+Seven rays from the car centre at −90°, −60°, −30°, 0°, +30°, +60°, +90° from
+the heading (negative = the car's left), each reporting distance to the track
+edge normalized by a 60 m range (1.0 = nothing within range), plus normalized
+speed: the 8 inputs the network will see. Rays are cast exactly against the
+rendered edges by walking the per-segment drivable quads (`src/sim/sensors/`).
+Note that rays start at the centre while collision uses the body corners, so a
+head-on forward ray reads ~2 m at the moment of impact.
 
 Keyboard steering is bang-bang, so the UI ramps the applied steering toward
 full lock over ~0.4 s and returns it to centre faster (`src/ui/inputSmoothing.ts`).
@@ -46,6 +57,7 @@ src/sim/     pure, headless simulation — no DOM, no timers, no Math.random, no
   math/        vec2 helpers + dmath.ts (deterministic sin/cos/atan2/exp/tanh)
   physics/     arcade car model (stepCar), body corners
   track/       track JSON → mitered edges; localized nearest-segment + collision
+  sensors/     quad-walk raycast + the 8 NN inputs
   engine/      World: fixed-timestep stepWorld over N cars, crash = frozen
 src/render/  Canvas 2D drawing; depends on sim/ only
 src/ui/      React chrome + the rAF/accumulator loop (the only place wall-clock time exists)

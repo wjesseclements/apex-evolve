@@ -181,3 +181,51 @@ kbd {
     height: 60vh;
   }
 }
+
+.hud__sub {
+  margin: 0.85rem 0 0.4rem;
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--muted);
+}
+
+.inputs {
+  display: grid;
+  grid-template-columns: repeat(8, 1fr);
+  gap: 0.3rem;
+}
+
+.inputs__col {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.15rem;
+  font-size: 0.7rem;
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.inputs__bar {
+  width: 100%;
+  height: 48px;
+  background: #262a33;
+  border-radius: 3px;
+  display: flex;
+  align-items: flex-end;
+  overflow: hidden;
+}
+
+.inputs__fill {
+  width: 100%;
+  background: var(--accent);
+  transition: height 80ms linear;
+}
+
+.inputs__col:last-child .inputs__fill {
+  background: var(--right);
+}
+
+.inputs__val {
+  color: var(--fg);
+}

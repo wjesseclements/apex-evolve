@@ -38,3 +38,33 @@ export const DEFAULT_PHYSICS: PhysicsConfig = {
   carLength: 4.0,
   carWidth: 1.8,
 };
+
+export interface SensorConfig {
+  /**
+   * Ray angles relative to the car's heading, radians. Negative = car's LEFT,
+   * positive = car's RIGHT (same sign convention as steering). SPEC: 7 rays at
+   * [−90°, −60°, −30°, 0°, +30°, +60°, +90°].
+   */
+  readonly angles: readonly number[];
+  /** Maximum ray length, meters. Readings are distance / range, clamped to [0, 1]. */
+  readonly range: number;
+}
+
+const DEG = Math.PI / 180;
+
+export const DEFAULT_SENSORS: SensorConfig = {
+  angles: [-90 * DEG, -60 * DEG, -30 * DEG, 0, 30 * DEG, 60 * DEG, 90 * DEG],
+  // ~2 s of look-ahead at vMax; the longest straight on the training track is 80 m.
+  range: 60,
+};
+
+/** Everything the simulation needs to run one world. */
+export interface SimConfig {
+  readonly physics: PhysicsConfig;
+  readonly sensors: SensorConfig;
+}
+
+export const DEFAULT_SIM: SimConfig = {
+  physics: DEFAULT_PHYSICS,
+  sensors: DEFAULT_SENSORS,
+};

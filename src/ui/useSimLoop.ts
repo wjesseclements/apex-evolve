@@ -2,7 +2,7 @@ import { useCallback, useEffect, useRef, useState, type RefObject } from 'react'
 import { fitCamera } from '../render/camera.ts';
 import { renderWorld, type RenderOptions } from '../render/draw.ts';
 import { createWorld, resetWorld, stepWorld, type World } from '../sim/engine/world.ts';
-import type { PhysicsConfig } from '../sim/config.ts';
+import type { SimConfig } from '../sim/config.ts';
 import type { CarControls } from '../sim/physics/car.ts';
 import type { Track } from '../sim/track/track.ts';
 import { smoothKeyboardControls } from './inputSmoothing.ts';
@@ -25,6 +25,8 @@ export interface SimLoopApi {
   readonly reset: () => void;
   readonly debug: boolean;
   readonly toggleDebug: () => void;
+  readonly showSensors: boolean;
+  readonly toggleSensors: () => void;
 }
 
 /**
@@ -37,12 +39,14 @@ export interface SimLoopApi {
 export function useSimLoop(
   canvasRef: RefObject<HTMLCanvasElement | null>,
   track: Track,
-  cfg: PhysicsConfig,
+  cfg: SimConfig,
   controlsRef: RefObject<CarControls>,
 ): SimLoopApi {
   const worldRef = useRef<World>(createWorld(track, cfg));
   const debugRef = useRef(false);
   const [debug, setDebug] = useState(false);
+  const sensorsRef = useRef(true);
+  const [showSensors, setShowSensors] = useState(true);
   const [hud, setHud] = useState<HudSnapshot | null>(null);
 
   useEffect(() => {
@@ -81,23 +85,24 @@ export function useSimLoop(
       last = now;
       if (frameDt > 0) fps = fps * 0.9 + (1 / frameDt) * 0.1;
 
-      // Fixed-timestep accumulator: simulation advances in whole ticks of cfg.dt
+      // Fixed-timestep accumulator: simulation advances in whole ticks of physics.dt
       // regardless of display refresh rate.
       acc += frameDt;
       let ticks = 0;
       let world = worldRef.current;
-      while (acc >= world.cfg.dt && ticks < MAX_TICKS_PER_FRAME) {
-        applied = smoothKeyboardControls(applied, controlsRef.current, world.cfg.dt);
+      const dt = world.cfg.physics.dt;
+      while (acc >= dt && ticks < MAX_TICKS_PER_FRAME) {
+        applied = smoothKeyboardControls(applied, controlsRef.current, dt);
         const controls = applied;
         world = stepWorld(world, () => controls);
-        acc -= world.cfg.dt;
+        acc -= dt;
         ticks++;
       }
       if (ticks === MAX_TICKS_PER_FRAME) acc = 0; // drop backlog rather than spiral
       worldRef.current = world;
 
       const cam = fitCamera(world.track.bounds, cssW, cssH);
-      const opts: RenderOptions = { debug: debugRef.current };
+      const opts: RenderOptions = { debug: debugRef.current, showSensors: sensorsRef.current };
       renderWorld(ctx, world, cam, cssW, cssH, opts);
 
       if (now - lastHud >= HUD_INTERVAL_MS) {
@@ -121,6 +126,10 @@ export function useSimLoop(
     debugRef.current = !debugRef.current;
     setDebug(debugRef.current);
   }, []);
+  const toggleSensors = useCallback(() => {
+    sensorsRef.current = !sensorsRef.current;
+    setShowSensors(sensorsRef.current);
+  }, []);
 
-  return { hud, reset, debug, toggleDebug };
+  return { hud, reset, debug, toggleDebug, showSensors, toggleSensors };
 }
