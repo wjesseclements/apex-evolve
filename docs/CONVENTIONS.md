@@ -1,0 +1,52 @@
+# Coordinate & unit conventions (locked)
+
+These were approved at the Slice 0 plan gate and are permanent. Every geometry
+function's JSDoc restates the parts it relies on.
+
+## Units
+
+- Distances in **meters**, time in **seconds**, angles in **radians**.
+- The world lives in meters; the renderer chooses pixels-per-meter.
+
+## Axes (screen-native)
+
+- `+x` = right (east), **`+y` = down (south)** on screen.
+- Rendering is therefore a pure scale + translate — no axis flip — so what the
+  unit tests assert about coordinates is literally what appears on screen.
+
+## Heading & steering
+
+- Heading `θ = 0` points along `+x` (east).
+- `θ` increases **clockwise on screen** (from `+x` toward `+y`).
+- Heading is kept unwrapped (no modulo); consumers that need a bounded angle
+  normalize locally.
+- **Positive steering (+1) = turn right = clockwise on screen.** Negative = left.
+- Direction of travel for heading `θ` is `(cos θ, sin θ)`.
+
+## Left / right of travel
+
+For a unit direction `d = (dx, dy)`:
+
+- **left normal** = `(dy, −dx)`  (facing east → screen-up `(0,−1)`)
+- **right normal** = `(−dy, dx)` (facing east → screen-down `(0, 1)`)
+
+Track **left edge** = centerline + `(width/2) · leftNormal`; right edge likewise.
+Track direction of travel = centerline point order.
+
+## Sensors (Slice 1+)
+
+Ray angle offsets are relative to heading; **negative = car's left, positive =
+car's right** — the same sign convention as steering.
+
+## Physics tick order (SPEC)
+
+Per fixed `dt = 1/60 s`, in this exact order:
+
+1. `v += throttle · ACCEL · dt`, clamp to `[0, V_MAX]`
+2. `v *= (1 − DRAG · dt)`
+3. `θ += steering · STEER_RATE · (v / V_MAX) · dt`
+4. `position += (cos θ, sin θ) · v · dt`
+
+Note: minimum turn radius `v/ω = V_MAX / STEER_RATE` is speed-independent in
+this model. Track corners must be authored with centerline radius comfortably
+above it.

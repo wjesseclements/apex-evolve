@@ -1,0 +1,38 @@
+name: CI
+
+# Quality gate only — Vercel owns deployment via its GitHub integration.
+# The `verify` job is the required status check named in .github/ruleset.json,
+# so nothing merges to main unless typecheck, lint, format, purity, tests, and
+# build are all green.
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  verify:
+    name: verify # <- exact name referenced by .github/ruleset.json
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-node@v5
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+
+      - run: npm ci
+      - run: npm run typecheck
+      - run: npm run lint
+      - run: npm run format:check
+      - run: npm run check:purity
+      - run: npm run test -- --run
+      - run: npm run build
