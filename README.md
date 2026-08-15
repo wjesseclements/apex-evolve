@@ -4,9 +4,9 @@ Neuroevolution racing in the browser: a population of cars, each driven by a
 tiny neural network, learns a 2D race track through a genetic algorithm written
 from scratch — no ML libraries, no backpropagation.
 
-**Status:** Slice 1 in progress — keyboard-drivable car with the arcade
-physics model, edge collision, and the 7-ray sensors that will feed the neural
-network. No learning yet. See [SLICES.md](SLICES.md) for the build plan and
+**Status:** Slice 1 — keyboard-drivable car with the arcade physics model,
+edge collision, the 7-ray sensors that will feed the neural network, and the
+checkpoint-based progress metric that will be its fitness. No learning yet. See [SLICES.md](SLICES.md) for the build plan and
 [SPEC.md](SPEC.md) for the design.
 
 ## Try it
@@ -26,6 +26,19 @@ speed: the 8 inputs the network will see. Rays are cast exactly against the
 rendered edges by walking the per-segment drivable quads (`src/sim/sensors/`).
 Note that rays start at the centre while collision uses the body corners, so a
 head-on forward ray reads ~2 m at the moment of impact.
+
+## Progress metric & episodes
+
+Checkpoints sit every ~5 m of centerline arc length (88 on the training track;
+checkpoint 0 is the start line). A car's **progress** is metres of centerline:
+the arc of the last checkpoint it crossed *in order, moving forward*, plus its
+current offset within the next span (clamped to that span). Backing up can
+lower the reading within a span but never below the last checkpoint and never
+earns anything; driving in circles plateaus; crossing the start line with all
+checkpoints passed counts a lap and progress carries on past the lap length.
+This is the quantity the genetic algorithm will maximise. Every episode lasts
+30 s of simulated time, after which the world freezes (`R` restarts). The
+debug overlay (`D`) draws the checkpoints and highlights the next one.
 
 Keyboard steering is bang-bang, so the UI ramps the applied steering toward
 full lock over ~0.4 s and returns it to centre faster (`src/ui/inputSmoothing.ts`).
@@ -56,7 +69,8 @@ src/sim/     pure, headless simulation — no DOM, no timers, no Math.random, no
   config.ts    every physics constant, typed and documented with units
   math/        vec2 helpers + dmath.ts (deterministic sin/cos/atan2/exp/tanh)
   physics/     arcade car model (stepCar), body corners
-  track/       track JSON → mitered edges; localized nearest-segment + collision
+  track/       track JSON → mitered edges; localized nearest-segment + collision;
+               checkpoints + progress metric
   sensors/     quad-walk raycast + the 8 NN inputs
   engine/      World: fixed-timestep stepWorld over N cars, crash = frozen
 src/render/  Canvas 2D drawing; depends on sim/ only

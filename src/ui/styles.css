@@ -117,6 +117,11 @@ body {
   font-weight: 600;
 }
 
+.hud__over {
+  color: #ffd166;
+  font-weight: 600;
+}
+
 .hud__help {
   margin-top: 0.85rem;
   padding-top: 0.75rem;

@@ -58,13 +58,35 @@ export const DEFAULT_SENSORS: SensorConfig = {
   range: 60,
 };
 
+export interface ProgressConfig {
+  /** Target arc-length spacing between checkpoints along the centerline, meters. */
+  readonly checkpointSpacing: number;
+}
+
+export const DEFAULT_PROGRESS: ProgressConfig = {
+  checkpointSpacing: 5,
+};
+
+export interface EpisodeConfig {
+  /** Episode length in simulated seconds; when reached the world stops advancing. */
+  readonly seconds: number;
+}
+
+export const DEFAULT_EPISODE: EpisodeConfig = {
+  seconds: 30,
+};
+
 /** Everything the simulation needs to run one world. */
 export interface SimConfig {
   readonly physics: PhysicsConfig;
   readonly sensors: SensorConfig;
+  readonly progress: ProgressConfig;
+  readonly episode: EpisodeConfig;
 }
 
 export const DEFAULT_SIM: SimConfig = {
   physics: DEFAULT_PHYSICS,
   sensors: DEFAULT_SENSORS,
+  progress: DEFAULT_PROGRESS,
+  episode: DEFAULT_EPISODE,
 };
