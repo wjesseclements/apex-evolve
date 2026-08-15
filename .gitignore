@@ -1,0 +1,26 @@
+# dependencies
+node_modules/
+
+# build output
+dist/
+coverage/
+
+# vite / tooling caches
+.vite/
+*.tsbuildinfo
+.eslintcache
+
+# vercel
+.vercel/
+
+# env
+.env
+.env.*
+!.env.example
+
+# editor / OS
+.DS_Store
+.idea/
+.vscode/*
+!.vscode/extensions.json
+*.log
