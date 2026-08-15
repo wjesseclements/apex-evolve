@@ -196,13 +196,17 @@ describe('stepCar — determinism (same inputs ⇒ same trajectory)', () => {
   it('golden final state after 1200 ticks with DEFAULT_PHYSICS (regression pin)', () => {
     // Pinned from the first implementation. If this changes, the physics
     // model changed — update deliberately, never casually.
+    //
+    // Tolerance, not bit-equality: Math.sin/Math.cos are not bit-identical
+    // across JS engines (macOS/arm64 Node 26 and Linux/x64 Node 22 differed in
+    // the last two bits of y after 1200 ticks). Determinism is guaranteed
+    // within one engine — that is what the bit-identical test above pins.
     const s = trajectory(DEFAULT_PHYSICS, 1200).at(-1);
-    expect(s).toEqual({
-      x: GOLDEN.x,
-      y: GOLDEN.y,
-      heading: GOLDEN.heading,
-      speed: GOLDEN.speed,
-    });
+    if (!s) throw new Error('empty trajectory');
+    expect(s.x).toBeCloseTo(GOLDEN.x, 9);
+    expect(s.y).toBeCloseTo(GOLDEN.y, 9);
+    expect(s.heading).toBeCloseTo(GOLDEN.heading, 9);
+    expect(s.speed).toBeCloseTo(GOLDEN.speed, 9);
   });
 });
 
