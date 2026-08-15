@@ -50,3 +50,20 @@ Per fixed `dt = 1/60 s`, in this exact order:
 Note: minimum turn radius `v/ω = V_MAX / STEER_RATE` is speed-independent in
 this model. Track corners must be authored with centerline radius comfortably
 above it.
+
+## Determinism (cross-engine bit-identity)
+
+`sim/` never calls engine-dependent `Math` functions. ECMA-262 only requires
+"implementation-approximated" results for `Math.sin/cos/tan/atan2/exp/tanh/
+pow/hypot/log…`, and engines really do differ in the last bits (observed:
+macOS/arm64 Node 26 vs Linux/x64 Node 22 on a 1200-tick physics trajectory).
+Instead, `src/sim/math/dmath.ts` provides `sin, cos, atan, atan2, exp, tanh,
+hypot2` built from fdlibm's minimax kernels using only IEEE-754 basic
+arithmetic, `Math.sqrt` (hardware, correctly rounded), `floor/trunc/abs`. Those
+operations are exactly specified, so every sim result is bit-identical on every
+engine — a seed shared between two people replays the same run.
+
+Enforced by ESLint (`no-restricted-properties` on `src/sim/**`, non-test files)
+and `scripts/check-sim-purity.sh` in CI, and proven by exact (`Object.is`)
+golden pins in `dmath.test.ts`, `car.test.ts`, and `world.test.ts` that must
+match on the developer machine and CI.

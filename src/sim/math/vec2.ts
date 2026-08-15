@@ -7,7 +7,11 @@
  *   clockwise on screen (from +x toward +y).
  *
  * All functions are pure and allocate a fresh result; none mutate inputs.
+ * Transcendentals come from ./dmath.ts so results are bit-identical across
+ * JS engines (Math.hypot / Math.sin / Math.cos are not).
  */
+
+import { cos, hypot2, sin } from './dmath.ts';
 
 export interface Vec2 {
   readonly x: number;
@@ -40,22 +44,22 @@ export function cross(a: Vec2, b: Vec2): number {
 }
 
 export function length(a: Vec2): number {
-  return Math.hypot(a.x, a.y);
+  return hypot2(a.x, a.y);
 }
 
 export function distance(a: Vec2, b: Vec2): number {
-  return Math.hypot(a.x - b.x, a.y - b.y);
+  return hypot2(a.x - b.x, a.y - b.y);
 }
 
 /** Unit vector in the direction of `a`; returns (0,0) for the zero vector. */
 export function normalize(a: Vec2): Vec2 {
-  const len = Math.hypot(a.x, a.y);
+  const len = hypot2(a.x, a.y);
   return len === 0 ? { x: 0, y: 0 } : { x: a.x / len, y: a.y / len };
 }
 
 /** Unit vector pointing along `angle` (radians, 0 = +x, clockwise-positive on screen). */
 export function fromAngle(angle: number): Vec2 {
-  return { x: Math.cos(angle), y: Math.sin(angle) };
+  return { x: cos(angle), y: sin(angle) };
 }
 
 /**
@@ -76,7 +80,7 @@ export function rightNormal(d: Vec2): Vec2 {
 
 /** Rotate `a` by `angle` radians (positive = clockwise on screen, per convention). */
 export function rotate(a: Vec2, angle: number): Vec2 {
-  const c = Math.cos(angle);
-  const s = Math.sin(angle);
+  const c = cos(angle);
+  const s = sin(angle);
   return { x: a.x * c - a.y * s, y: a.x * s + a.y * c };
 }

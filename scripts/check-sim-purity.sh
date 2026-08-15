@@ -8,10 +8,15 @@ SIM_DIR="src/sim"
 [ -d "$SIM_DIR" ] || { echo "no $SIM_DIR directory yet; nothing to check"; exit 0; }
 
 fail=0
+# check PATTERN WHY [nontest]
+#   Greps src/sim for PATTERN, ignoring comment lines. With a third argument,
+#   test files are skipped (they may call Math.* as a reference to compare
+#   dmath against); otherwise tests are checked too (no Math.random anywhere).
 check() {
-  local pattern="$1" why="$2"
-  # Exclude test files: they are allowed to be looser, but still no Math.random.
-  if hits=$(grep -rnE --include='*.ts' "$pattern" "$SIM_DIR"); then
+  local pattern="$1" why="$2" scope="${3:-all}"
+  local -a excl=()
+  [ "$scope" = "nontest" ] && excl=(--exclude='*.test.ts')
+  if hits=$(grep -rnE --include='*.ts' ${excl[@]+"${excl[@]}"} "$pattern" "$SIM_DIR" | grep -vE '^[^:]+:[0-9]+:\s*(//|\*|/\*)'); then
     echo "PURITY VIOLATION ($why):"
     echo "$hits"
     fail=1
@@ -19,6 +24,7 @@ check() {
 }
 
 check 'Math\.random' 'all randomness must flow through the seeded PRNG'
+check 'Math\.(sin|cos|tan|asin|acos|atan|atan2|sinh|cosh|tanh|asinh|acosh|atanh|exp|expm1|log|log2|log10|log1p|pow|hypot|cbrt)\b' 'engine-dependent Math function in sim/ — use src/sim/math/dmath.ts' nontest
 check 'Date\.now|new Date\(' 'no wall-clock time in sim/'
 check '\b(window|document|navigator)\.' 'no DOM in sim/'
 check 'requestAnimationFrame|setTimeout|setInterval' 'no timers in sim/'

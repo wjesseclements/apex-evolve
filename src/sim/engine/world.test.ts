@@ -94,17 +94,43 @@ describe('stepWorld', () => {
     expect(w.cars[1]!.state.x).toBeGreaterThan(30);
   });
 
+  /** Deterministic scripted controls (no Math.* so the input itself is engine-independent). */
+  const scriptedControls = (t: number): CarControls => ({
+    steering: ((t % 97) / 97) * 0.6 - 0.3,
+    throttle: t % 100 < 70 ? 1 : -0.5,
+  });
+  const driveScripted = () => {
+    let w = createWorld(TRAINING_TRACK, DEFAULT_PHYSICS, 2);
+    for (let t = 0; t < 900; t++) w = stepWorld(w, (i) => scriptedControls(t + i * 7));
+    return w;
+  };
+
   it('is deterministic: two worlds stepped with identical inputs are deeply equal', () => {
-    const controlsAt = (t: number): CarControls => ({
-      steering: Math.sin(t / 30) * 0.5,
-      throttle: t % 100 < 70 ? 1 : -0.5,
+    expect(driveScripted()).toStrictEqual(driveScripted());
+  });
+
+  it('golden: 900 scripted ticks on the training track — BIT-EXACT on every engine', () => {
+    // Pinned on macOS/arm64, verified on CI (Linux/x64). Exercises stepCar,
+    // dmath trig, mitered edges and the localized collision test end to end.
+    const w = driveScripted();
+    const c0 = w.cars[0]!;
+    const c1 = w.cars[1]!;
+    expect(c0.state).toEqual({
+      x: 101.4497285885484,
+      y: 3.3680870870252653,
+      heading: 0.015895596235454643,
+      speed: 19.549352013749544,
     });
-    const drive = () => {
-      let w = createWorld(TRAINING_TRACK, DEFAULT_PHYSICS, 2);
-      for (let t = 0; t < 900; t++) w = stepWorld(w, (i) => controlsAt(t + i * 7));
-      return w;
-    };
-    expect(drive()).toStrictEqual(drive());
+    expect(c0.alive).toBe(false);
+    expect(c0.crashedAtTick).toBe(431);
+    expect(c1.state).toEqual({
+      x: 102.37045190939392,
+      y: 4.301863957415418,
+      heading: 0.029426509836316204,
+      speed: 20.86415146250684,
+    });
+    expect(c1.alive).toBe(false);
+    expect(c1.crashedAtTick).toBe(439);
   });
 
   it('on the training track, full throttle straight from the start crashes at the first corner', () => {

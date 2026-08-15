@@ -16,10 +16,12 @@
  *   4. position += (cos θ, sin θ) · v · dt
  *
  * `stepCar` is a pure function of (state, controls, config): same inputs ⇒
- * bit-identical output. Heading is left unwrapped.
+ * bit-identical output on every JS engine (trig comes from math/dmath.ts).
+ * Heading is left unwrapped.
  */
 
 import type { PhysicsConfig } from '../config.ts';
+import { cos, sin } from '../math/dmath.ts';
 import { fromAngle, leftNormal, type Vec2 } from '../math/vec2.ts';
 
 export interface CarState {
@@ -75,8 +77,8 @@ export function stepCar(state: CarState, controls: CarControls, cfg: PhysicsConf
   const heading = state.heading + steering * cfg.steerRate * (speed / cfg.vMax) * dt;
 
   // 4. translate along the (new) heading.
-  const x = state.x + Math.cos(heading) * speed * dt;
-  const y = state.y + Math.sin(heading) * speed * dt;
+  const x = state.x + cos(heading) * speed * dt;
+  const y = state.y + sin(heading) * speed * dt;
 
   return { x, y, heading, speed };
 }

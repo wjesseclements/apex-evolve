@@ -41,7 +41,7 @@ const GOLDEN_CFG: PhysicsConfig = {
 /** Pinned final state of the determinism trajectory under GOLDEN_CFG. */
 const GOLDEN = {
   x: 5.732648069503768,
-  y: 3.4171097494180334,
+  y: 3.4171097494180414,
   heading: 7.001384167430112,
   speed: 13.84979358266484,
 };
@@ -208,20 +208,19 @@ describe('stepCar — determinism (same inputs ⇒ same trajectory)', () => {
     }
   });
 
-  it('golden final state after 1200 ticks with GOLDEN_CFG (regression pin)', () => {
-    // Pinned from the first implementation. If this changes, the physics
-    // model changed — update deliberately, never casually.
-    //
-    // Tolerance, not bit-equality: Math.sin/Math.cos are not bit-identical
-    // across JS engines (macOS/arm64 Node 26 and Linux/x64 Node 22 differed in
-    // the last two bits of y after 1200 ticks). Determinism is guaranteed
-    // within one engine — that is what the bit-identical test above pins.
+  it('golden final state after 1200 ticks with GOLDEN_CFG — BIT-EXACT on every engine', () => {
+    // Pinned on macOS/arm64; CI (Linux/x64) must reproduce it bit-for-bit.
+    // Bit-exactness is possible because stepCar's trig comes from
+    // sim/math/dmath.ts, not Math.sin/cos (which differ between engines —
+    // this very pin failed on CI in Slice 0 before dmath existed).
+    // If the physics *model* changes, update deliberately; if only one
+    // platform disagrees, that platform broke an IEEE assumption — investigate.
     const s = trajectory(GOLDEN_CFG, 1200).at(-1);
     if (!s) throw new Error('empty trajectory');
-    expect(s.x).toBeCloseTo(GOLDEN.x, 9);
-    expect(s.y).toBeCloseTo(GOLDEN.y, 9);
-    expect(s.heading).toBeCloseTo(GOLDEN.heading, 9);
-    expect(s.speed).toBeCloseTo(GOLDEN.speed, 9);
+    expect(Object.is(s.x, GOLDEN.x)).toBe(true);
+    expect(Object.is(s.y, GOLDEN.y)).toBe(true);
+    expect(Object.is(s.heading, GOLDEN.heading)).toBe(true);
+    expect(Object.is(s.speed, GOLDEN.speed)).toBe(true);
   });
 });
 
