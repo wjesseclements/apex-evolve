@@ -26,8 +26,10 @@ export interface Session {
   reset(): void;
   /** The evolution run (Evolve mode) or null. */
   evolution(): Evolution | null;
-  /** Index of the car to highlight (the live leader in Evolve mode, the driver's car in Drive mode). */
+  /** Index of the car to highlight when nothing is selected (live leader in Evolve, the driver's car in Drive). */
   focusIndex(): number;
+  /** Current generation number (0 in Drive mode). */
+  generation(): number;
 }
 
 export function createDriveSession(track: Track, cfg: SimConfig): Session {
@@ -45,6 +47,7 @@ export function createDriveSession(track: Track, cfg: SimConfig): Session {
     },
     evolution: () => null,
     focusIndex: () => 0,
+    generation: () => 0,
   };
 }
 
@@ -68,5 +71,6 @@ export function createEvolveSession(track: Track, cfg: EvolveSessionConfig): Ses
     },
     evolution: () => evo,
     focusIndex: () => leaderIndex(evo.world),
+    generation: () => evo.generation,
   };
 }
