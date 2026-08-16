@@ -66,7 +66,7 @@ export function Hud({
     status === 'ALIVE' ? 'hud__alive' : status === 'TIME UP' ? 'hud__over' : 'hud__dead';
 
   const alive = world ? world.cars.filter((x) => x.alive).length : 0;
-  const liveBest = world ? Math.max(0, ...world.cars.map(fitnessOf)) : 0;
+  const liveBest = world ? Math.max(0, ...world.cars.map((x) => fitnessOf(x, world.cfg))) : 0;
   const liveLaps = world && cps ? world.cars.filter((x) => lapsOf(x.progress, cps) >= 1).length : 0;
   const lastGen = evo?.history[evo.history.length - 1];
   const dt = world?.cfg.physics.dt ?? 1 / 60;
@@ -90,15 +90,19 @@ export function Hud({
               {alive} / {world.cars.length}
             </dd>
             <dt>Best (this gen)</dt>
-            <dd>{fmt(liveBest)} m</dd>
+            <dd>{fmt(liveBest)} fitness</dd>
             <dt>Best ever</dt>
             <dd>
               {evo.bestEver
-                ? `${fmt(evo.bestEver.fitness)} m  (gen ${evo.bestEver.generation})`
+                ? `${fmt(evo.bestEver.fitness)}  (gen ${evo.bestEver.generation})`
                 : '—'}
             </dd>
             <dt>Mean (last gen)</dt>
-            <dd>{lastGen ? `${fmt(lastGen.mean)} m` : '—'}</dd>
+            <dd>
+              {lastGen
+                ? `${fmt(lastGen.mean)} · best progress ${fmt(lastGen.bestProgress)} m`
+                : '—'}
+            </dd>
             <dt>Deaths (last gen)</dt>
             <dd>
               {lastGen
@@ -130,7 +134,7 @@ export function Hud({
             <dt>GA</dt>
             <dd>{`mut ${evo.cfg.ga.mutationRate.toFixed(2)} · xover ${evo.cfg.ga.crossoverEnabled ? 'on' : 'off'}`}</dd>
           </dl>
-          <h3 className="hud__sub">Fitness per generation (metres of track)</h3>
+          <h3 className="hud__sub">Fitness per generation (metres + lap bonus)</h3>
           <FitnessChart history={evo.history} />
           {runControls}
         </>
@@ -139,7 +143,7 @@ export function Hud({
         <Inspector
           car={car}
           vMax={world.cfg.physics.vMax}
-          fitness={fitnessOf(car)}
+          fitness={fitnessOf(car, world.cfg)}
           title={
             evo
               ? hud?.selected

@@ -42,9 +42,12 @@ export interface EvolutionConfig {
 export interface GenerationRecord {
   /** 0-based generation index. */
   readonly generation: number;
+  /** Best / mean / median FITNESS (progress + lap bonus, metre-equivalent). */
   readonly best: number;
   readonly mean: number;
   readonly median: number;
+  /** Best raw progress in metres (no bonus). */
+  readonly bestProgress: number;
   /** Fraction of cars that died by touching a wall. */
   readonly crashRate: number;
   /** Fraction of cars that died by the stall rule. */
@@ -121,9 +124,16 @@ function drive(evo: Evolution, i: number, car: Car): CarControls {
   return { steering: evo.out[0] ?? 0, throttle: evo.out[1] ?? 0 };
 }
 
-/** Fitness of a car (Slice 2: progress in metres). */
-export function fitnessOf(car: Car): number {
-  return car.progress.progress;
+/**
+ * Fitness of a car: progress in metres, plus — once it has completed a lap —
+ * cfg.fitness.lapBonus / (best lap seconds). Metre-equivalent units, so the
+ * chart and stats keep their meaning.
+ */
+export function fitnessOf(car: Car, cfg: SimConfig): number {
+  const bonus = cfg.fitness.lapBonus;
+  if (bonus === 0) return car.progress.progress;
+  const lap = bestLapSeconds(car, cfg.physics.dt);
+  return lap === null ? car.progress.progress : car.progress.progress + bonus / lap;
 }
 
 /** Index of the car with the highest fitness so far (ties → lowest index). */
@@ -131,7 +141,7 @@ export function leaderIndex(world: World): number {
   let best = 0;
   let bestF = -Infinity;
   world.cars.forEach((c, i) => {
-    const f = fitnessOf(c);
+    const f = fitnessOf(c, world.cfg);
     if (f > bestF) {
       bestF = f;
       best = i;
@@ -164,7 +174,7 @@ export function finishGeneration(evo: Evolution): GenerationRecord {
   const cars = evo.world.cars;
   const scored: ScoredGenome[] = cars.map((car, i) => ({
     genome: evo.population[i] ?? new Float32Array(0),
-    fitness: fitnessOf(car),
+    fitness: fitnessOf(car, evo.cfg.sim),
   }));
   const fits = scored.map((s) => s.fitness);
   const sorted = [...fits].sort((a, b) => a - b);
@@ -182,6 +192,7 @@ export function finishGeneration(evo: Evolution): GenerationRecord {
   const record: GenerationRecord = {
     generation: evo.generation,
     best: fits[bestIndex] ?? 0,
+    bestProgress: cars.reduce((m, c) => Math.max(m, c.progress.progress), 0),
     mean: n ? fits.reduce((a, b) => a + b, 0) / n : 0,
     median: medianOf(sorted),
     crashRate: n ? cars.filter((c) => c.deathCause === 'wall').length / n : 0,

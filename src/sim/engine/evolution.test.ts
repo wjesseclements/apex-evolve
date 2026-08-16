@@ -3,6 +3,7 @@ import { DEFAULT_GA, DEFAULT_NN, DEFAULT_SIM, NO_GRIP_SIM, type SimConfig } from
 import { SQUARE } from '../testing/fixtures.ts';
 import { buildTrack } from '../track/track.ts';
 import { TRAINING_TRACK } from '../track/tracks.ts';
+import { createWorld } from './world.ts';
 import {
   createEvolution,
   episodeDone,
@@ -63,10 +64,12 @@ describe('createEvolution / stepEvolution', () => {
     const evo = createEvolution(TRAINING_TRACK, CFG);
     for (let t = 0; t < 200; t++) stepEvolution(evo);
     const li = leaderIndex(evo.world);
-    const best = Math.max(...evo.world.cars.map(fitnessOf));
-    expect(fitnessOf(evo.world.cars[li]!)).toBe(best);
-    expect(evo.world.cars.findIndex((c) => fitnessOf(c) === best)).toBe(li);
-    expect(fitnessOf(evo.world.cars[li]!)).toBe(evo.world.cars[li]!.progress.progress);
+    const cfg = evo.world.cfg;
+    const best = Math.max(...evo.world.cars.map((c) => fitnessOf(c, cfg)));
+    expect(fitnessOf(evo.world.cars[li]!, cfg)).toBe(best);
+    expect(evo.world.cars.findIndex((c) => fitnessOf(c, cfg) === best)).toBe(li);
+    // No laps yet at tick 200 → fitness = progress
+    expect(fitnessOf(evo.world.cars[li]!, cfg)).toBe(evo.world.cars[li]!.progress.progress);
   });
 });
 
@@ -75,7 +78,7 @@ describe('finishGeneration', () => {
     const evo = createEvolution(TRAINING_TRACK, SHORT);
     while (!episodeDone(evo)) stepEvolution(evo);
     const cars = evo.world.cars;
-    const fits = cars.map(fitnessOf);
+    const fits = cars.map((c) => fitnessOf(c, evo.cfg.sim));
     const popBefore = evo.population;
     const rec = finishGeneration(evo);
     expect(rec.best).toBe(Math.max(...fits));
@@ -255,6 +258,35 @@ describe('lap times', () => {
   }, 120000);
 });
 
+describe('lap-time fitness bonus', () => {
+  it('fitness = progress until a lap is done, then + lapBonus / bestLap; a faster lap wins at equal progress; lapBonus 0 disables', () => {
+    const w = createWorld(buildTrack(SQUARE), DEFAULT_SIM);
+    const base = w.cars[0]!;
+    expect(fitnessOf(base, DEFAULT_SIM)).toBe(0);
+    const p = { ...base.progress, progress: 500 };
+    const slow = { ...base, progress: p, lapTicks: [1200] }; // 20 s lap
+    const fast = { ...base, progress: p, lapTicks: [900] }; // 15 s lap
+    const none = { ...base, progress: p };
+    expect(fitnessOf(none, DEFAULT_SIM)).toBe(500);
+    expect(fitnessOf(slow, DEFAULT_SIM)).toBeCloseTo(500 + 2000 / 20, 9);
+    expect(fitnessOf(fast, DEFAULT_SIM)).toBeCloseTo(500 + 2000 / 15, 9);
+    expect(fitnessOf(fast, DEFAULT_SIM)).toBeGreaterThan(fitnessOf(slow, DEFAULT_SIM));
+    const noBonus = { ...DEFAULT_SIM, fitness: { lapBonus: 0 } };
+    expect(fitnessOf(fast, noBonus)).toBe(500);
+  });
+
+  it('records: best is fitness, bestProgress is raw metres; once cars lap, best > bestProgress', () => {
+    const evo = createEvolution(TRAINING_TRACK, NO_GRIP_CFG);
+    runGenerations(evo, 9);
+    const r7 = evo.history.find((r) => r.lapCompletions > 0)!;
+    expect(r7).toBeDefined();
+    expect(r7.best).toBeGreaterThan(r7.bestProgress);
+    expect(r7.best - r7.bestProgress).toBeLessThanOrEqual(2000 / 14 + 1e-9); // bonus ≤ 2000/14 s
+    const r0 = evo.history[0]!;
+    expect(r0.best).toBe(r0.bestProgress);
+  }, 120000);
+});
+
 describe('square track smoke', () => {
   it('runs on a different track without error', () => {
     const evo = createEvolution(buildTrack(SQUARE), {
@@ -272,6 +304,7 @@ const GOLDEN_GEN3_GRIP: GenerationRecord = {
   best: 132.41187021980315,
   mean: 77.67176559080363,
   median: 96.61369458276306,
+  bestProgress: 132.41187021980315,
   crashRate: 0.98,
   stallRate: 0.02,
   lapCompletions: 0,
@@ -285,6 +318,7 @@ const GOLDEN_GEN3: GenerationRecord = {
   best: 259.9723771089442,
   mean: 79.95278254676413,
   median: 96.7192252230252,
+  bestProgress: 259.9723771089442,
   crashRate: 0.98,
   stallRate: 0.02,
   lapCompletions: 0,
