@@ -1,11 +1,11 @@
 import { useCallback, useEffect, useRef, useState, type RefObject } from 'react';
 import { fitCamera } from '../render/camera.ts';
 import { renderWorld, type RenderOptions } from '../render/draw.ts';
-import { createWorld, resetWorld, stepWorld, type World } from '../sim/engine/world.ts';
-import type { SimConfig } from '../sim/config.ts';
+import type { Evolution } from '../sim/engine/evolution.ts';
+import type { World } from '../sim/engine/world.ts';
 import type { CarControls } from '../sim/physics/car.ts';
-import type { Track } from '../sim/track/track.ts';
 import { smoothKeyboardControls } from './inputSmoothing.ts';
+import type { Session, SessionMode } from './session.ts';
 
 /** Never simulate more than this many ticks in one frame (spiral-of-death guard). */
 export const MAX_TICKS_PER_FRAME = 5;
@@ -15,9 +15,16 @@ const MAX_FRAME_DT = 0.25;
 const HUD_INTERVAL_MS = 80;
 
 export interface HudSnapshot {
+  readonly mode: SessionMode;
   readonly world: World;
+  /** The evolution run when in Evolve mode (a live, mutable object — read-only for display). */
+  readonly evolution: Evolution | null;
+  /** Index of the highlighted car. */
+  readonly focusIndex: number;
   /** Measured render frames per second (smoothed). */
   readonly fps: number;
+  /** Smoothed milliseconds of sim + render work per frame. */
+  readonly frameMs: number;
 }
 
 export interface SimLoopApi {
@@ -30,19 +37,20 @@ export interface SimLoopApi {
 }
 
 /**
- * Owns the world in a ref and drives it with a fixed-timestep accumulator on
- * requestAnimationFrame. React never re-renders per tick: the canvas is
- * painted imperatively, and a throttled snapshot feeds the HUD.
+ * Drives a Session with a fixed-timestep accumulator on requestAnimationFrame.
+ * React never re-renders per tick: the canvas is painted imperatively, and a
+ * throttled snapshot feeds the HUD. Wall-clock time and rAF live HERE (ui/),
+ * never in sim/.
  *
- * Wall-clock time and rAF live HERE (ui/), never in sim/.
+ * `createSession` is called once per mount (and again whenever it changes,
+ * e.g. on a mode switch); the loop steps whatever it returns.
  */
 export function useSimLoop(
   canvasRef: RefObject<HTMLCanvasElement | null>,
-  track: Track,
-  cfg: SimConfig,
+  createSession: () => Session,
   controlsRef: RefObject<CarControls>,
 ): SimLoopApi {
-  const worldRef = useRef<World>(createWorld(track, cfg));
+  const sessionRef = useRef<Session | null>(null);
   const debugRef = useRef(false);
   const [debug, setDebug] = useState(false);
   const sensorsRef = useRef(true);
@@ -54,12 +62,15 @@ export function useSimLoop(
     if (!canvas) return;
     const ctx = canvas.getContext('2d');
     if (!ctx) return;
+    const session = createSession();
+    sessionRef.current = session;
 
     let raf = 0;
     let last = performance.now();
     let acc = 0;
     let lastHud = 0;
     let fps = 0;
+    let frameMs = 0;
     let cssW = 0;
     let cssH = 0;
     let applied: CarControls = { steering: 0, throttle: 0 };
@@ -81,6 +92,7 @@ export function useSimLoop(
     if (canvas.parentElement) ro.observe(canvas.parentElement);
 
     const frame = (now: number) => {
+      const workStart = performance.now();
       const frameDt = Math.min((now - last) / 1000, MAX_FRAME_DT);
       last = now;
       if (frameDt > 0) fps = fps * 0.9 + (1 / frameDt) * 0.1;
@@ -89,25 +101,36 @@ export function useSimLoop(
       // regardless of display refresh rate.
       acc += frameDt;
       let ticks = 0;
-      let world = worldRef.current;
-      const dt = world.cfg.physics.dt;
+      const dt = session.world().cfg.physics.dt;
       while (acc >= dt && ticks < MAX_TICKS_PER_FRAME) {
         applied = smoothKeyboardControls(applied, controlsRef.current, dt);
-        const controls = applied;
-        world = stepWorld(world, () => controls);
+        session.tick(applied);
         acc -= dt;
         ticks++;
       }
       if (ticks === MAX_TICKS_PER_FRAME) acc = 0; // drop backlog rather than spiral
-      worldRef.current = world;
 
+      const world = session.world();
+      const focusIndex = session.focusIndex();
       const cam = fitCamera(world.track.bounds, cssW, cssH);
-      const opts: RenderOptions = { debug: debugRef.current, showSensors: sensorsRef.current };
+      const opts: RenderOptions = {
+        debug: debugRef.current,
+        showSensors: sensorsRef.current,
+        focusIndex,
+      };
       renderWorld(ctx, world, cam, cssW, cssH, opts);
+      frameMs = frameMs * 0.9 + (performance.now() - workStart) * 0.1;
 
       if (now - lastHud >= HUD_INTERVAL_MS) {
         lastHud = now;
-        setHud({ world, fps });
+        setHud({
+          mode: session.mode,
+          world,
+          evolution: session.evolution(),
+          focusIndex,
+          fps,
+          frameMs,
+        });
       }
       raf = requestAnimationFrame(frame);
     };
@@ -116,11 +139,12 @@ export function useSimLoop(
     return () => {
       cancelAnimationFrame(raf);
       ro.disconnect();
+      sessionRef.current = null;
     };
-  }, [canvasRef, controlsRef]);
+  }, [canvasRef, controlsRef, createSession]);
 
   const reset = useCallback(() => {
-    worldRef.current = resetWorld(worldRef.current);
+    sessionRef.current?.reset();
   }, []);
   const toggleDebug = useCallback(() => {
     debugRef.current = !debugRef.current;

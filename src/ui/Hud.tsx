@@ -1,3 +1,4 @@
+import { fitnessOf } from '../sim/engine/evolution.ts';
 import { isEpisodeOver } from '../sim/engine/world.ts';
 import { lapsOf, nextCheckpointIndex } from '../sim/track/progress.ts';
 import type { HudSnapshot } from './useSimLoop.ts';
@@ -30,7 +31,8 @@ export function Hud({
   showSensors: boolean;
 }) {
   const world = hud?.world;
-  const car = world?.cars[0];
+  const evo = hud?.evolution ?? null;
+  const car = world?.cars[hud?.focusIndex ?? 0];
   const s = car?.state;
   const c = car?.controls;
   const inputs = car?.sensors.inputs;
@@ -40,17 +42,70 @@ export function Hud({
   const laps = prog && cps ? lapsOf(prog, cps) : 0;
   const lapProgress = prog && cps ? prog.progress - laps * cps.totalLength : 0;
   const lapPct = cps ? (lapProgress / cps.totalLength) * 100 : 0;
-  const status = !car ? '—' : !car.alive ? 'CRASHED' : over ? 'TIME UP' : 'ALIVE';
+  const status = !car
+    ? '—'
+    : !car.alive
+      ? car.deathCause === 'stall'
+        ? 'STALLED'
+        : 'CRASHED'
+      : over
+        ? 'TIME UP'
+        : 'ALIVE';
   const statusClass =
-    status === 'ALIVE' ? 'hud__alive' : status === 'CRASHED' ? 'hud__dead' : 'hud__over';
+    status === 'ALIVE' ? 'hud__alive' : status === 'TIME UP' ? 'hud__over' : 'hud__dead';
+
+  const alive = world ? world.cars.filter((x) => x.alive).length : 0;
+  const liveBest = world ? Math.max(0, ...world.cars.map(fitnessOf)) : 0;
+  const liveLaps = world && cps ? world.cars.filter((x) => lapsOf(x.progress, cps) >= 1).length : 0;
+  const lastGen = evo?.history[evo.history.length - 1];
+
   return (
-    <aside className="hud" aria-label="Telemetry">
-      <h2 className="hud__title">Telemetry</h2>
+    <aside className="hud" aria-label="Stats">
+      {evo && world && (
+        <>
+          <h2 className="hud__title">Evolution</h2>
+          <dl className="hud__grid hud__grid--big">
+            <dt>Generation</dt>
+            <dd>{evo.generation}</dd>
+            <dt>Alive</dt>
+            <dd>
+              {alive} / {world.cars.length}
+            </dd>
+            <dt>Best (this gen)</dt>
+            <dd>{fmt(liveBest)} m</dd>
+            <dt>Best ever</dt>
+            <dd>
+              {evo.bestEver
+                ? `${fmt(evo.bestEver.fitness)} m  (gen ${evo.bestEver.generation})`
+                : '—'}
+            </dd>
+            <dt>Laps (this gen)</dt>
+            <dd>{liveLaps}</dd>
+            <dt>Last gen</dt>
+            <dd>
+              {lastGen
+                ? `mean ${fmt(lastGen.mean)} m · crash ${fmt(lastGen.crashRate * 100, 0)}% · stall ${fmt(lastGen.stallRate * 100, 0)}%`
+                : '—'}
+            </dd>
+            <dt>Episode</dt>
+            <dd>{`${fmt(world.time)} / ${fmt(world.cfg.episode.seconds, 0)} s`}</dd>
+            <dt>Seed</dt>
+            <dd>{String(evo.cfg.seed)}</dd>
+            <dt>Crossover</dt>
+            <dd>{evo.cfg.ga.crossoverEnabled ? 'on' : 'off'}</dd>
+          </dl>
+        </>
+      )}
+      <h2 className="hud__title">{evo ? 'Leader telemetry' : 'Telemetry'}</h2>
       <dl className="hud__grid">
         <dt>Status</dt>
         <dd className={statusClass}>{status}</dd>
-        <dt>Episode</dt>
-        <dd>{world ? `${fmt(world.time)} / ${fmt(world.cfg.episode.seconds, 0)} s` : '—'}</dd>
+        {!evo && (
+          <>
+            <dt>Episode</dt>
+            <dd>{world ? `${fmt(world.time)} / ${fmt(world.cfg.episode.seconds, 0)} s` : '—'}</dd>
+          </>
+        )}
         <dt>Progress</dt>
         <dd>
           {prog && cps ? `${fmt(prog.progress)} m  (lap ${laps + 1}: ${fmt(lapPct, 0)}%)` : '—'}
@@ -76,11 +131,11 @@ export function Hud({
         <dt>Tick</dt>
         <dd>{world ? `${world.tick}` : '—'}</dd>
         <dt>Render</dt>
-        <dd>{hud ? `${fmt(hud.fps, 0)} fps` : '—'}</dd>
-        <dt>Debug</dt>
-        <dd>{debug ? 'ON' : 'off'}</dd>
-        <dt>Rays</dt>
-        <dd>{showSensors ? 'shown' : 'hidden'}</dd>
+        <dd>{hud ? `${fmt(hud.fps, 0)} fps · ${fmt(hud.frameMs, 2)} ms/frame` : '—'}</dd>
+        <dt>Overlay</dt>
+        <dd>
+          rays {showSensors ? 'on' : 'off'} · debug {debug ? 'on' : 'off'}
+        </dd>
       </dl>
       <h3 className="hud__sub">Sensor inputs (NN inputs, 0–1)</h3>
       <div className="inputs" aria-label="Sensor inputs">
@@ -99,19 +154,19 @@ export function Hud({
       </div>
       <div className="hud__help">
         <p>
-          <kbd>↑</kbd> throttle · <kbd>↓</kbd> brake · <kbd>←</kbd> <kbd>→</kbd> steer
+          <kbd>M</kbd> switch Evolve / Drive · <kbd>R</kbd> restart · <kbd>S</kbd> sensor rays ·{' '}
+          <kbd>D</kbd> debug overlay
         </p>
         <p>
-          <kbd>R</kbd> reset · <kbd>S</kbd> sensor rays · <kbd>D</kbd> debug overlay
+          Drive: <kbd>↑</kbd> throttle · <kbd>↓</kbd> brake · <kbd>←</kbd> <kbd>→</kbd> steer
         </p>
         <p className="hud__conv">
-          Conventions: heading 0° = east, clockwise positive. Positive steering (→) turns right.
-          Debug overlay: <span className="hud__left">left edge</span> /{' '}
-          <span className="hud__right">right edge</span>, heading arrow, car&apos;s left side dot.
-          Rays are cast from the car centre (L = car&apos;s left, R = right); collision uses the
-          body corners, so the forward ray reads ~2 m when the nose touches a wall. Debug overlay
-          also shows checkpoint ticks (next one highlighted). Progress = metres along the
-          centerline, checkpoints crossed in order; the episode freezes at the timer.
+          Each car sees 7 wall distances + its speed and outputs steering + throttle. Fitness =
+          metres of track covered (checkpoints in order). Every generation the top 5 survive
+          unchanged and the rest are mutated copies of tournament winners. Cars are ghosts — they
+          never collide with each other. Yellow = current leader. Heading 0° = east, clockwise
+          positive; positive steering turns right. Rays start at the car centre; collision uses the
+          body corners.
         </p>
       </div>
     </aside>
