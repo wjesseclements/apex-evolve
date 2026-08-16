@@ -15,6 +15,7 @@ export function Inspector({
   car: Car;
   vMax: number;
   title: string;
+  /** Fitness = progress + lap bonus (metre-equivalent). */
   fitness: number;
 }) {
   const st = car.controls.steering;
@@ -59,7 +60,8 @@ export function Inspector({
         <div className="inspector__stats">
           <div>
             <span className="inspector__label">Fitness</span>
-            <strong>{fitness.toFixed(1)} m</strong>
+            <strong>{fitness.toFixed(1)}</strong>
+            <span className="inspector__label">progress {car.progress.progress.toFixed(1)} m</span>
           </div>
           <div>
             <span className="inspector__label">Status</span>

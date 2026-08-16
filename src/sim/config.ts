@@ -104,12 +104,26 @@ export const DEFAULT_EPISODE: EpisodeConfig = {
   stallSpeed: 0.5,
 };
 
-/** Everything the simulation needs to run one world. */
+export interface FitnessConfig {
+  /**
+   * Lap-time bonus (SPEC): fitness = progress + lapBonus / bestLapSeconds for
+   * cars that completed a lap, in metre·seconds. 2000 ⇒ a 20 s lap adds 100
+   * "metres", a 15 s lap 133. Protects lap-finishing as a trait and rewards
+   * lap time directly rather than 30 s throughput. 0 disables the bonus
+   * (fitness = pure progress).
+   */
+  readonly lapBonus: number;
+}
+
+export const DEFAULT_FITNESS: FitnessConfig = { lapBonus: 2000 };
+
+/** Everything the simulation needs to run one world (+ how it is scored). */
 export interface SimConfig {
   readonly physics: PhysicsConfig;
   readonly sensors: SensorConfig;
   readonly progress: ProgressConfig;
   readonly episode: EpisodeConfig;
+  readonly fitness: FitnessConfig;
 }
 
 export const DEFAULT_SIM: SimConfig = {
@@ -117,6 +131,7 @@ export const DEFAULT_SIM: SimConfig = {
   sensors: DEFAULT_SENSORS,
   progress: DEFAULT_PROGRESS,
   episode: DEFAULT_EPISODE,
+  fitness: DEFAULT_FITNESS,
 };
 
 /** DEFAULT_SIM with the grip limit off (the Slice 0–3 model). Guarded by its own golden pins. */

@@ -22,7 +22,13 @@ const lateralAccelMax =
     : gripArg === 'off'
       ? null
       : Number(gripArg);
-const sim = { ...DEFAULT_SIM, physics: { ...DEFAULT_SIM.physics, lateralAccelMax } };
+const lapBonus =
+  process.argv[6] === undefined ? DEFAULT_SIM.fitness.lapBonus : Number(process.argv[6]);
+const sim = {
+  ...DEFAULT_SIM,
+  physics: { ...DEFAULT_SIM.physics, lateralAccelMax },
+  fitness: { lapBonus },
+};
 
 const evo = createEvolution(TRAINING_TRACK, {
   sim,
@@ -33,7 +39,7 @@ const evo = createEvolution(TRAINING_TRACK, {
 
 const pad = (v: string | number, w: number) => String(v).padStart(w);
 process.stdout.write(
-  `seed=${String(seed)} crossover=${crossoverEnabled ? 'on' : 'off'} grip=${lateralAccelMax ?? 'off'} pop=${DEFAULT_GA.populationSize} episode=${DEFAULT_SIM.episode.seconds}s stall=${DEFAULT_SIM.episode.stallSeconds ?? 'off'}s\n`,
+  `seed=${String(seed)} crossover=${crossoverEnabled ? 'on' : 'off'} grip=${lateralAccelMax ?? 'off'} lapBonus=${lapBonus} pop=${DEFAULT_GA.populationSize} episode=${DEFAULT_SIM.episode.seconds}s stall=${DEFAULT_SIM.episode.stallSeconds ?? 'off'}s\n`,
 );
 process.stdout.write(
   'gen |   best |   mean | median | crash | stall | laps | ticks | bestlap |   ms\n',
@@ -45,7 +51,7 @@ for (let g = 0; g < generations; g++) {
   const r = evo.history[evo.history.length - 1];
   if (!r) break;
   process.stdout.write(
-    `${pad(r.generation, 3)} | ${pad(r.best.toFixed(1), 6)} | ${pad(r.mean.toFixed(1), 6)} | ${pad(r.median.toFixed(1), 6)} | ${pad((r.crashRate * 100).toFixed(0) + '%', 5)} | ${pad((r.stallRate * 100).toFixed(0) + '%', 5)} | ${pad(r.lapCompletions, 4)} | ${pad(r.ticks, 5)} | ${pad(r.bestLapTime === null ? '—' : r.bestLapTime.toFixed(2), 7)} | ${pad((performance.now() - s).toFixed(0), 4)}\n`,
+    `${pad(r.generation, 3)} | ${pad(r.best.toFixed(1), 6)} | ${pad(r.mean.toFixed(1), 6)} | ${pad(r.median.toFixed(1), 6)} | ${pad(r.bestProgress.toFixed(1), 8)} | ${pad((r.crashRate * 100).toFixed(0) + '%', 5)} | ${pad((r.stallRate * 100).toFixed(0) + '%', 5)} | ${pad(r.lapCompletions, 4)} | ${pad(r.ticks, 5)} | ${pad(r.bestLapTime === null ? '—' : r.bestLapTime.toFixed(2), 7)} | ${pad((performance.now() - s).toFixed(0), 4)}\n`,
   );
 }
 process.stdout.write(
