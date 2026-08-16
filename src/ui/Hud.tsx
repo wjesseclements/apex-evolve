@@ -119,9 +119,12 @@ export function Hud({
               {hud ? ` · ${fmt(hud.ticksPerSecond / 60, 1)}× real time` : ''}
             </dd>
             <dt>Seed</dt>
-            <dd>{String(evo.cfg.seed)}</dd>
-            <dt>Crossover</dt>
-            <dd>{evo.cfg.ga.crossoverEnabled ? 'on' : 'off'}</dd>
+            <dd>
+              {String(evo.cfg.seed)}
+              {evo.modified ? ' · modified' : ''}
+            </dd>
+            <dt>GA</dt>
+            <dd>{`mutation ${evo.cfg.ga.mutationRate.toFixed(2)} · crossover ${evo.cfg.ga.crossoverEnabled ? 'on' : 'off'}`}</dd>
           </dl>
           <h3 className="hud__sub">Fitness per generation (metres of track)</h3>
           <FitnessChart history={evo.history} />

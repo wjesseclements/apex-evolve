@@ -17,7 +17,7 @@
 
 import type { GaConfig, NetworkTopology, SimConfig } from '../config.ts';
 import { initPopulation, nextGeneration, type ScoredGenome } from '../ga/ga.ts';
-import { createScratch, forward, type Genome } from '../nn/network.ts';
+import { createScratch, forward, genomeLength, type Genome } from '../nn/network.ts';
 import { NEUTRAL_CONTROLS, type CarControls } from '../physics/car.ts';
 import { createPrng, type Prng } from '../random/prng.ts';
 import { lapsOf } from '../track/progress.ts';
@@ -72,9 +72,16 @@ export interface BestEver {
 }
 
 export interface Evolution {
-  readonly cfg: EvolutionConfig;
+  /** Current config. `ga` may be replaced mid-run via setGaConfig (marks the run modified). */
+  cfg: EvolutionConfig;
   readonly track: Track;
   readonly rng: Prng;
+  /**
+   * False while the run is a pure function of (seed, initial config). Set by
+   * any mid-run knob change or genome import: from then on the seed alone no
+   * longer reproduces this run, and exports say so.
+   */
+  modified: boolean;
   generation: number;
   population: readonly Genome[];
   world: World;
@@ -93,6 +100,7 @@ export function createEvolution(track: Track, cfg: EvolutionConfig): Evolution {
     cfg,
     track,
     rng,
+    modified: false,
     generation: 0,
     population,
     world: createWorld(track, cfg.sim, population.length),
@@ -199,6 +207,45 @@ export function finishGeneration(evo: Evolution): GenerationRecord {
   evo.generation += 1;
   evo.world = createWorld(evo.track, evo.cfg.sim, evo.population.length);
   return record;
+}
+
+/**
+ * Replace the GA config for subsequent breeding steps (mutation rate,
+ * crossover, …). Population size cannot change mid-run. Marks the run
+ * modified when anything actually changed.
+ */
+export function setGaConfig(evo: Evolution, ga: GaConfig): void {
+  if (ga.populationSize !== evo.cfg.ga.populationSize) {
+    throw new Error('populationSize cannot change mid-run; restart instead');
+  }
+  const prev = evo.cfg.ga;
+  const changed =
+    ga.eliteCount !== prev.eliteCount ||
+    ga.tournamentK !== prev.tournamentK ||
+    ga.crossoverEnabled !== prev.crossoverEnabled ||
+    ga.mutationRate !== prev.mutationRate ||
+    ga.mutationSigma !== prev.mutationSigma ||
+    ga.initSigma !== prev.initSigma;
+  if (!changed) return;
+  evo.cfg = { ...evo.cfg, ga };
+  evo.modified = true;
+}
+
+/**
+ * Put `genome` into population slot `slot` and restart the current
+ * generation's episode so it drives from the start line. Marks the run
+ * modified (a foreign genome has entered the breeding pool).
+ */
+export function injectGenome(evo: Evolution, genome: Genome, slot = 0): void {
+  if (genome.length !== genomeLength(evo.cfg.nn)) {
+    throw new Error(`genome length ${genome.length} ≠ ${genomeLength(evo.cfg.nn)}`);
+  }
+  if (slot < 0 || slot >= evo.population.length) throw new RangeError(`slot ${slot} out of range`);
+  const pop = evo.population.slice();
+  pop[slot] = new Float32Array(genome);
+  evo.population = pop;
+  evo.modified = true;
+  evo.world = createWorld(evo.track, evo.cfg.sim, pop.length);
 }
 
 /** Median of an ascending-sorted array (0 for empty). */

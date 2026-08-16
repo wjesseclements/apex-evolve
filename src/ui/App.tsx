@@ -3,14 +3,12 @@ import { DEFAULT_GA, DEFAULT_NN, DEFAULT_SIM } from '../sim/config.ts';
 import { NEUTRAL_CONTROLS, type CarControls } from '../sim/physics/car.ts';
 import { TRAINING_TRACK } from '../sim/track/tracks.ts';
 import { Hud } from './Hud.tsx';
+import { RunControls } from './RunControls.tsx';
 import { createDriveSession, createEvolveSession } from './session.ts';
 import { useUiStore } from './store.ts';
 import { SPEEDS, type Speed } from './tickPlanner.ts';
 import { useKeyboardControls } from './useKeyboardControls.ts';
 import { useSimLoop } from './useSimLoop.ts';
-
-/** SPEC "default seed": the run everyone sees first, and the one the tests pin. */
-export const DEFAULT_SEED = 42;
 
 const SPEED_KEYS: Record<string, Speed> = { '1': 1, '2': 4, '3': 16, '4': 'max' };
 
@@ -29,11 +27,18 @@ export function App() {
     () =>
       mode === 'evolve'
         ? () =>
-            createEvolveSession(TRAINING_TRACK, {
-              sim: DEFAULT_SIM,
-              ga: DEFAULT_GA,
-              nn: DEFAULT_NN,
-              seed: DEFAULT_SEED,
+            createEvolveSession(TRAINING_TRACK, () => {
+              const st = useUiStore.getState();
+              return {
+                sim: DEFAULT_SIM,
+                ga: {
+                  ...DEFAULT_GA,
+                  mutationRate: st.mutationRate,
+                  crossoverEnabled: st.crossoverEnabled,
+                },
+                nn: DEFAULT_NN,
+                seed: st.seed,
+              };
             })
         : () => createDriveSession(TRAINING_TRACK, DEFAULT_SIM),
     [mode],
@@ -133,6 +138,9 @@ export function App() {
             paused={paused}
             speed={speed}
           />
+          {mode === 'evolve' && (
+            <RunControls evolution={sim.hud?.evolution ?? null} onRestart={reset} />
+          )}
           <div className="controls">
             <button type="button" onClick={reset}>
               {mode === 'evolve' ? 'Restart evolution (R)' : 'Reset car (R)'}

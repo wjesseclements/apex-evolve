@@ -58,8 +58,13 @@ export interface EvolveSessionConfig {
   readonly seed: number | string;
 }
 
-export function createEvolveSession(track: Track, cfg: EvolveSessionConfig): Session {
-  let evo = createEvolution(track, cfg);
+/**
+ * `getConfig` is read on every (re)start so the latest seed and knob values
+ * apply; the running evolution keeps the config it started with until
+ * setGaConfig is called on it (see App).
+ */
+export function createEvolveSession(track: Track, getConfig: () => EvolveSessionConfig): Session {
+  let evo = createEvolution(track, getConfig());
   return {
     mode: 'evolve',
     world: () => evo.world,
@@ -67,7 +72,7 @@ export function createEvolveSession(track: Track, cfg: EvolveSessionConfig): Ses
       stepEvolution(evo);
     },
     reset: () => {
-      evo = createEvolution(track, cfg);
+      evo = createEvolution(track, getConfig());
     },
     evolution: () => evo,
     focusIndex: () => leaderIndex(evo.world),
