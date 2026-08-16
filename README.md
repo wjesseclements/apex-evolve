@@ -28,8 +28,13 @@ generation, fitness, `modified`); **Import genome…** drops a genome into car #
 of a restarted episode and selects it, so you can watch a saved champion drive
 — identically, every time.
 
+**Tracks:** A (training, 440 m, clockwise) and B (held-out, 509 m,
+counter-clockwise, one tight corner). Pick one in the Run panel or with
+`?track=heldout`; **"Test best on B"** carries the current champion onto the
+other track as car #0 so you can watch whether it copes.
+
 **Drive** (<kbd>M</kbd> or the toggle): race the algorithm yourself —
-arrow keys drive the car: <kbd>↑</kbd> throttle, <kbd>↓</kbd> brake,
+arrow keys drive the car (and yes, you have to brake now): <kbd>↑</kbd> throttle, <kbd>↓</kbd> brake,
 <kbd>←</kbd>/<kbd>→</kbd> steer. <kbd>R</kbd> resets after a crash,
 <kbd>S</kbd> toggles the sensor rays, <kbd>D</kbd> toggles the debug overlay
 (left edge red, right edge blue, heading arrow, car's left side dotted).
@@ -39,9 +44,9 @@ Touching a track edge kills the car for the rest of the run.
 
 - **Network:** 8 inputs (7 ray distances + speed) → 10 tanh → 2 tanh
   (steering, throttle). Genome = 112 float32 weights/biases in one flat array.
-- **Fitness:** metres of centerline covered (checkpoints in order), so a car
-  that completes a lap in 15 s and keeps going scores ≈ 2 laps' worth in a
-  30 s episode. A lap-time bonus arrives in Slice 4.
+- **Fitness:** metres of centerline covered (checkpoints in order) plus, once
+  a car has completed a lap, `2000 / bestLapSeconds` (a 20 s lap adds 100
+  metre-equivalents). Both numbers are shown; the chart plots fitness.
 - **Generation:** all 100 cars run simultaneously as ghosts (no inter-car
   collision) until the 30 s timer, or until every car has died — by touching
   a wall or by the stall rule (below 0.5 m/s for 3 s of sim time).
@@ -117,7 +122,10 @@ src/render/  Canvas 2D drawing; depends on sim/ only
 src/ui/      React chrome + the rAF/accumulator loop (the only place wall-clock time exists);
              Evolve / Drive sessions, zustand UI store, tick planner (speed/pause), inspector,
              run controls (seed, knobs, genome export/import), fitness chart
-scripts/     gen-track.ts (track authoring), evolve-headless.ts (learning-curve table), CI purity grep
+scripts/     gen-track.ts (track authoring), evolve-headless.ts (learning-curve table),
+             inspect-champion.ts (brake/coast/speed dissection), generalize.ts (A→B / B→A protocol),
+             CI purity grep
+docs/        CONVENTIONS.md (locked conventions), FINDINGS.md (grip, lap bonus, crossover, generalization)
 docs/        CONVENTIONS.md — locked coordinate conventions
 ```
 
@@ -130,9 +138,15 @@ Per fixed tick (`dt = 1/60 s`), in this order:
 3. `θ += steering · STEER_RATE · (v / V_MAX) · dt` — no turning at standstill
 4. `position += (cos θ, sin θ) · v · dt`
 
+5. **Grip limit** (Slice 4): the yaw rate is clamped so lateral acceleration
+   `v·ω ≤ A = 20 m/s²` — turn radius at speed can't drop below `v²/A`
+   (45 m at 30 m/s), i.e. the car understeers unless it slows down. Corner
+   speed for radius R is `√(A·R)`: 19 m/s at R = 18.
+
 Constants (`src/sim/config.ts`): `V_MAX = 30 m/s`, `ACCEL = 12 m/s²`,
-`DRAG = 0.3 /s`, `STEER_RATE = 2.5 rad/s`, car `4.0 × 1.8 m`. Minimum turn
-radius is `V_MAX / STEER_RATE = 12 m`, independent of speed.
+`DRAG = 0.3 /s`, `STEER_RATE = 2.5 rad/s`, `A = 20 m/s²`, car `4.0 × 1.8 m`.
+Below ≈ 15.5 m/s the grip limit is inactive and the minimum turn radius is
+`V_MAX / STEER_RATE = 12 m`.
 
 Coordinates: meters, **+y down** (screen-native), heading 0 = east, positive
 angles / positive steering = clockwise on screen = right turn. Full details in
