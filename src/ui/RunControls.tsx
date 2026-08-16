@@ -134,8 +134,12 @@ export function RunControls({
           spellCheck={false}
           aria-label="Seed (number or text)"
         />
-        <button type="button" onClick={restartWithSeed}>
-          Restart with seed
+        <button
+          type="button"
+          onClick={restartWithSeed}
+          title="Restart the run with this seed (Enter)"
+        >
+          Restart
         </button>
       </div>
       <div className="run__row">

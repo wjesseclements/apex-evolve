@@ -3,6 +3,7 @@ import { bestLapSeconds, isEpisodeOver } from '../sim/engine/world.ts';
 import { FitnessChart } from './FitnessChart.tsx';
 import { Inspector } from './Inspector.tsx';
 import { lapsOf, nextCheckpointIndex } from '../sim/track/progress.ts';
+import type { ReactNode } from 'react';
 import type { Speed } from './tickPlanner.ts';
 import type { HudSnapshot } from './useSimLoop.ts';
 
@@ -30,12 +31,15 @@ export function Hud({
   showSensors,
   paused,
   speed,
+  runControls,
 }: {
   hud: HudSnapshot | null;
   debug: boolean;
   showSensors: boolean;
   paused: boolean;
   speed: Speed;
+  /** Rendered between the evolution stats/chart and the inspector (Evolve mode). */
+  runControls?: ReactNode;
 }) {
   const world = hud?.world;
   const evo = hud?.evolution ?? null;
@@ -124,10 +128,11 @@ export function Hud({
               {evo.modified ? ' · modified' : ''}
             </dd>
             <dt>GA</dt>
-            <dd>{`mutation ${evo.cfg.ga.mutationRate.toFixed(2)} · crossover ${evo.cfg.ga.crossoverEnabled ? 'on' : 'off'}`}</dd>
+            <dd>{`mut ${evo.cfg.ga.mutationRate.toFixed(2)} · xover ${evo.cfg.ga.crossoverEnabled ? 'on' : 'off'}`}</dd>
           </dl>
           <h3 className="hud__sub">Fitness per generation (metres of track)</h3>
           <FitnessChart history={evo.history} />
+          {runControls}
         </>
       )}
       {car && world && (
