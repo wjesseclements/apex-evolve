@@ -32,6 +32,7 @@ export function useKeyboardControls(
         held.add(e.key);
         recompute();
       } else if (!e.repeat && !e.metaKey && !e.ctrlKey && !e.altKey) {
+        if (e.key === ' ') e.preventDefault(); // space = pause, not page scroll
         onKeyRef.current(e.key.toLowerCase());
       }
     };

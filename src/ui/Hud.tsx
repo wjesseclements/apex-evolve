@@ -1,6 +1,7 @@
 import { fitnessOf } from '../sim/engine/evolution.ts';
 import { isEpisodeOver } from '../sim/engine/world.ts';
 import { lapsOf, nextCheckpointIndex } from '../sim/track/progress.ts';
+import type { Speed } from './tickPlanner.ts';
 import type { HudSnapshot } from './useSimLoop.ts';
 
 function fmt(n: number, digits = 1): string {
@@ -25,10 +26,14 @@ export function Hud({
   hud,
   debug,
   showSensors,
+  paused,
+  speed,
 }: {
   hud: HudSnapshot | null;
   debug: boolean;
   showSensors: boolean;
+  paused: boolean;
+  speed: Speed;
 }) {
   const world = hud?.world;
   const evo = hud?.evolution ?? null;
@@ -89,6 +94,11 @@ export function Hud({
             </dd>
             <dt>Episode</dt>
             <dd>{`${fmt(world.time)} / ${fmt(world.cfg.episode.seconds, 0)} s`}</dd>
+            <dt>Speed</dt>
+            <dd>
+              {paused ? 'paused' : speed === 'max' ? 'max' : `${speed}×`}
+              {hud ? ` · ${fmt(hud.ticksPerSecond / 60, 1)}× real time` : ''}
+            </dd>
             <dt>Seed</dt>
             <dd>{String(evo.cfg.seed)}</dd>
             <dt>Crossover</dt>
@@ -154,7 +164,8 @@ export function Hud({
       </div>
       <div className="hud__help">
         <p>
-          <kbd>M</kbd> switch Evolve / Drive · <kbd>R</kbd> restart · <kbd>S</kbd> sensor rays ·{' '}
+          <kbd>M</kbd> switch Evolve / Drive · <kbd>R</kbd> restart · <kbd>space</kbd> pause ·{' '}
+          <kbd>1</kbd>–<kbd>4</kbd> speed 1× / 4× / 16× / max · <kbd>S</kbd> sensor rays ·{' '}
           <kbd>D</kbd> debug overlay
         </p>
         <p>
