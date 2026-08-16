@@ -1,19 +1,30 @@
-import { useCallback, useMemo, useRef, useState } from 'react';
+import { useCallback, useMemo, useRef } from 'react';
 import { DEFAULT_GA, DEFAULT_NN, DEFAULT_SIM } from '../sim/config.ts';
 import { NEUTRAL_CONTROLS, type CarControls } from '../sim/physics/car.ts';
 import { TRAINING_TRACK } from '../sim/track/tracks.ts';
 import { Hud } from './Hud.tsx';
-import { createDriveSession, createEvolveSession, type SessionMode } from './session.ts';
+import { createDriveSession, createEvolveSession } from './session.ts';
+import { useUiStore } from './store.ts';
+import { SPEEDS, type Speed } from './tickPlanner.ts';
 import { useKeyboardControls } from './useKeyboardControls.ts';
 import { useSimLoop } from './useSimLoop.ts';
 
 /** SPEC "default seed": the run everyone sees first, and the one the tests pin. */
 export const DEFAULT_SEED = 42;
 
+const SPEED_KEYS: Record<string, Speed> = { '1': 1, '2': 4, '3': 16, '4': 'max' };
+
 export function App() {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const controlsRef = useRef<CarControls>(NEUTRAL_CONTROLS);
-  const [mode, setMode] = useState<SessionMode>('evolve');
+  const mode = useUiStore((s) => s.mode);
+  const speed = useUiStore((s) => s.speed);
+  const paused = useUiStore((s) => s.paused);
+  const showSensors = useUiStore((s) => s.showSensors);
+  const debug = useUiStore((s) => s.debug);
+  const { setMode, toggleMode, setSpeed, togglePaused, toggleSensors, toggleDebug } =
+    useUiStore.getState();
+
   const createSession = useMemo(
     () =>
       mode === 'evolve'
@@ -28,15 +39,17 @@ export function App() {
     [mode],
   );
   const sim = useSimLoop(canvasRef, createSession, controlsRef);
-  const { reset, toggleDebug, toggleSensors } = sim;
+  const { reset } = sim;
   const onKey = useCallback(
     (key: string) => {
       if (key === 'r') reset();
-      if (key === 'd') toggleDebug();
-      if (key === 's') toggleSensors();
-      if (key === 'm') setMode((m) => (m === 'evolve' ? 'drive' : 'evolve'));
+      else if (key === 'd') toggleDebug();
+      else if (key === 's') toggleSensors();
+      else if (key === 'm') toggleMode();
+      else if (key === ' ') togglePaused();
+      else if (key in SPEED_KEYS) setSpeed(SPEED_KEYS[key] ?? 1);
     },
-    [reset, toggleDebug, toggleSensors],
+    [reset, toggleDebug, toggleSensors, toggleMode, togglePaused, setSpeed],
   );
   useKeyboardControls(controlsRef, onKey);
 
@@ -51,24 +64,50 @@ export function App() {
               : 'Drive mode — race the algorithm yourself with the arrow keys.'}
           </p>
         </div>
-        <div className="mode" role="tablist" aria-label="Mode">
+        <div className="toolbar">
+          <div className="seg" role="tablist" aria-label="Mode">
+            <button
+              type="button"
+              role="tab"
+              aria-selected={mode === 'evolve'}
+              className={mode === 'evolve' ? 'seg__btn seg__btn--on' : 'seg__btn'}
+              onClick={() => setMode('evolve')}
+            >
+              Evolve
+            </button>
+            <button
+              type="button"
+              role="tab"
+              aria-selected={mode === 'drive'}
+              className={mode === 'drive' ? 'seg__btn seg__btn--on' : 'seg__btn'}
+              onClick={() => setMode('drive')}
+            >
+              Drive
+            </button>
+          </div>
+          <div className="seg" role="group" aria-label="Speed">
+            {SPEEDS.map((sp, i) => (
+              <button
+                key={String(sp)}
+                type="button"
+                className={speed === sp ? 'seg__btn seg__btn--on' : 'seg__btn'}
+                onClick={() => setSpeed(sp)}
+                disabled={mode === 'drive'}
+                title={`Speed ${sp === 'max' ? 'max' : `${sp}×`} (key ${i + 1})`}
+                aria-pressed={speed === sp}
+              >
+                {sp === 'max' ? 'max' : `${sp}×`}
+              </button>
+            ))}
+          </div>
           <button
             type="button"
-            role="tab"
-            aria-selected={mode === 'evolve'}
-            className={mode === 'evolve' ? 'mode__btn mode__btn--on' : 'mode__btn'}
-            onClick={() => setMode('evolve')}
+            className={paused ? 'seg__btn seg__btn--on seg__btn--solo' : 'seg__btn seg__btn--solo'}
+            onClick={togglePaused}
+            aria-pressed={paused}
+            title="Pause / resume (space)"
           >
-            Evolve
-          </button>
-          <button
-            type="button"
-            role="tab"
-            aria-selected={mode === 'drive'}
-            className={mode === 'drive' ? 'mode__btn mode__btn--on' : 'mode__btn'}
-            onClick={() => setMode('drive')}
-          >
-            Drive
+            {paused ? '▶ Resume' : '❚❚ Pause'}
           </button>
         </div>
       </header>
@@ -77,16 +116,22 @@ export function App() {
           <canvas ref={canvasRef} className="sim-canvas" aria-label="Simulation" />
         </div>
         <div className="side">
-          <Hud hud={sim.hud} debug={sim.debug} showSensors={sim.showSensors} />
+          <Hud
+            hud={sim.hud}
+            debug={debug}
+            showSensors={showSensors}
+            paused={paused}
+            speed={speed}
+          />
           <div className="controls">
             <button type="button" onClick={reset}>
               {mode === 'evolve' ? 'Restart evolution (R)' : 'Reset car (R)'}
             </button>
-            <button type="button" onClick={toggleSensors} aria-pressed={sim.showSensors}>
-              Sensor rays (S): {sim.showSensors ? 'on' : 'off'}
+            <button type="button" onClick={toggleSensors} aria-pressed={showSensors}>
+              Sensor rays (S): {showSensors ? 'on' : 'off'}
             </button>
-            <button type="button" onClick={toggleDebug} aria-pressed={sim.debug}>
-              Debug overlay (D): {sim.debug ? 'on' : 'off'}
+            <button type="button" onClick={toggleDebug} aria-pressed={debug}>
+              Debug overlay (D): {debug ? 'on' : 'off'}
             </button>
           </div>
         </div>

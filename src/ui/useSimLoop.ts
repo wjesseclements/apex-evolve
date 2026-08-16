@@ -6,11 +6,13 @@ import type { World } from '../sim/engine/world.ts';
 import type { CarControls } from '../sim/physics/car.ts';
 import { smoothKeyboardControls } from './inputSmoothing.ts';
 import type { Session, SessionMode } from './session.ts';
+import { useUiStore } from './store.ts';
+import { planTicks, runBudgeted } from './tickPlanner.ts';
 
-/** Never simulate more than this many ticks in one frame (spiral-of-death guard). */
-export const MAX_TICKS_PER_FRAME = 5;
 /** Ignore frame gaps longer than this (tab was hidden); the backlog is dropped, not caught up. */
 const MAX_FRAME_DT = 0.25;
+/** Wall-clock budget per frame for 'max' speed. Leaves headroom for render + React on a 60 Hz display. */
+export const MAX_SPEED_BUDGET_MS = 12;
 /** How often the React HUD snapshot is refreshed. */
 const HUD_INTERVAL_MS = 80;
 
@@ -25,15 +27,13 @@ export interface HudSnapshot {
   readonly fps: number;
   /** Smoothed milliseconds of sim + render work per frame. */
   readonly frameMs: number;
+  /** Smoothed simulation ticks per real second (shows the effective speed). */
+  readonly ticksPerSecond: number;
 }
 
 export interface SimLoopApi {
   readonly hud: HudSnapshot | null;
   readonly reset: () => void;
-  readonly debug: boolean;
-  readonly toggleDebug: () => void;
-  readonly showSensors: boolean;
-  readonly toggleSensors: () => void;
 }
 
 /**
@@ -51,10 +51,6 @@ export function useSimLoop(
   controlsRef: RefObject<CarControls>,
 ): SimLoopApi {
   const sessionRef = useRef<Session | null>(null);
-  const debugRef = useRef(false);
-  const [debug, setDebug] = useState(false);
-  const sensorsRef = useRef(true);
-  const [showSensors, setShowSensors] = useState(true);
   const [hud, setHud] = useState<HudSnapshot | null>(null);
 
   useEffect(() => {
@@ -91,31 +87,43 @@ export function useSimLoop(
     const ro = new ResizeObserver(resize);
     if (canvas.parentElement) ro.observe(canvas.parentElement);
 
+    let tps = 0;
     const frame = (now: number) => {
       const workStart = performance.now();
       const frameDt = Math.min((now - last) / 1000, MAX_FRAME_DT);
       last = now;
       if (frameDt > 0) fps = fps * 0.9 + (1 / frameDt) * 0.1;
 
-      // Fixed-timestep accumulator: simulation advances in whole ticks of physics.dt
-      // regardless of display refresh rate.
-      acc += frameDt;
-      let ticks = 0;
+      // Speed/pause come from the UI store, read once per frame. Drive mode
+      // always runs at 1×. Only the NUMBER of ticks per frame changes with
+      // speed — never the tick itself — so results are speed-independent.
+      const ui = useUiStore.getState();
       const dt = session.world().cfg.physics.dt;
-      while (acc >= dt && ticks < MAX_TICKS_PER_FRAME) {
+      const speed = session.mode === 'drive' ? 1 : ui.speed;
+      let ticks = 0;
+      const doTick = () => {
         applied = smoothKeyboardControls(applied, controlsRef.current, dt);
         session.tick(applied);
-        acc -= dt;
-        ticks++;
+      };
+      if (ui.paused) {
+        acc = 0;
+      } else if (speed === 'max') {
+        acc = 0;
+        ticks = runBudgeted(doTick, () => performance.now(), MAX_SPEED_BUDGET_MS);
+      } else {
+        const plan = planTicks(speed, acc, frameDt, dt);
+        acc = plan.acc;
+        for (let i = 0; i < plan.ticks; i++) doTick();
+        ticks = plan.ticks;
       }
-      if (ticks === MAX_TICKS_PER_FRAME) acc = 0; // drop backlog rather than spiral
+      if (frameDt > 0) tps = tps * 0.9 + (ticks / frameDt) * 0.1;
 
       const world = session.world();
       const focusIndex = session.focusIndex();
       const cam = fitCamera(world.track.bounds, cssW, cssH);
       const opts: RenderOptions = {
-        debug: debugRef.current,
-        showSensors: sensorsRef.current,
+        debug: ui.debug,
+        showSensors: ui.showSensors,
         focusIndex,
       };
       renderWorld(ctx, world, cam, cssW, cssH, opts);
@@ -130,6 +138,7 @@ export function useSimLoop(
           focusIndex,
           fps,
           frameMs,
+          ticksPerSecond: tps,
         });
       }
       raf = requestAnimationFrame(frame);
@@ -146,14 +155,6 @@ export function useSimLoop(
   const reset = useCallback(() => {
     sessionRef.current?.reset();
   }, []);
-  const toggleDebug = useCallback(() => {
-    debugRef.current = !debugRef.current;
-    setDebug(debugRef.current);
-  }, []);
-  const toggleSensors = useCallback(() => {
-    sensorsRef.current = !sensorsRef.current;
-    setShowSensors(sensorsRef.current);
-  }, []);
 
-  return { hud, reset, debug, toggleDebug, showSensors, toggleSensors };
+  return { hud, reset };
 }

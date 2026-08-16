@@ -43,7 +43,9 @@ describe('initPopulation / rankIndices', () => {
 });
 
 describe('tournamentSelect', () => {
-  it('prefers fitter genomes: pick frequency increases with rank, k=4 vs k=1', () => {
+  it('prefers fitter genomes: pick frequency increases with rank, k=4 vs k=1 (POOL OF 20, not the 100-car population)', () => {
+    // The theory values below (0.1855, 6e-6) are for this 20-genome pool with
+    // replacement; for the real population of 100 P(best) = 1 − 0.99⁴ ≈ 0.039.
     const pop = ladder(20);
     const N = 20000;
     const count = (k: number, seed: number) => {

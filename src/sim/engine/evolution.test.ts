@@ -141,6 +141,47 @@ describe('reproducibility (SPEC success criterion 2)', () => {
   }, 30000);
 });
 
+describe('determinism across speed settings (Slice 3 checklist)', () => {
+  /**
+   * The frame loop only decides HOW MANY ticks run per frame; the tick itself
+   * is identical. Stepping the same seed in batches of 1, 7, 60 and random
+   * "budget-shaped" sizes must give bit-identical histories and worlds.
+   */
+  const stepInBatches = (batch: () => number, ticks: number) => {
+    const evo = createEvolution(TRAINING_TRACK, SHORT);
+    let done = 0;
+    while (done < ticks) {
+      const n = Math.min(batch(), ticks - done);
+      for (let i = 0; i < n; i++) stepEvolution(evo);
+      done += n;
+    }
+    return evo;
+  };
+
+  it('batches of 1, 7, 60 and pseudo-random sizes ⇒ identical histories, worlds, populations', () => {
+    const TICKS = 3000; // a few generations of 8 s episodes
+    const a = stepInBatches(() => 1, TICKS);
+    const b = stepInBatches(() => 7, TICKS);
+    const c = stepInBatches(() => 60, TICKS);
+    let x = 12345;
+    const d = stepInBatches(() => {
+      x = (x * 1103515245 + 12345) % 2147483648; // LCG, test-only
+      return 1 + (x % 250);
+    }, TICKS);
+    expect(a.history.length).toBeGreaterThan(2);
+    for (const other of [b, c, d]) {
+      expect(other.history).toStrictEqual(a.history);
+      expect(other.generation).toBe(a.generation);
+      expect(other.world.tick).toBe(a.world.tick);
+      expect(other.world).toStrictEqual(a.world);
+      expect(other.population.map((g) => Array.from(g))).toEqual(
+        a.population.map((g) => Array.from(g)),
+      );
+      expect(other.rng.state()).toBe(a.rng.state());
+    }
+  }, 120000);
+});
+
 describe('learning (default config, seed 42, training track) — deterministic so not flaky', () => {
   it('mean progress at gen 15 far exceeds gen 0, and at least one lap is completed by gen 15', () => {
     const evo = createEvolution(TRAINING_TRACK, CFG);

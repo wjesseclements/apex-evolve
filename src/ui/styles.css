@@ -243,14 +243,21 @@ kbd {
   flex-wrap: wrap;
 }
 
-.mode {
+.toolbar {
+  display: flex;
+  gap: 0.6rem;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+.seg {
   display: inline-flex;
   border: 1px solid #333844;
   border-radius: 8px;
   overflow: hidden;
 }
 
-.mode__btn {
+.seg__btn {
   background: #171a21;
   color: var(--muted);
   border: 0;
@@ -259,10 +266,20 @@ kbd {
   cursor: pointer;
 }
 
-.mode__btn--on {
+.seg__btn:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
+.seg__btn--on {
   background: #2f3440;
   color: var(--fg);
   font-weight: 600;
+}
+
+.seg__btn--solo {
+  border: 1px solid #333844;
+  border-radius: 8px;
 }
 
 .hud__grid--big {
