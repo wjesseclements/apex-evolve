@@ -412,3 +412,63 @@ kbd {
 .inspector__stats span {
   display: block;
 }
+
+.run {
+  background: var(--panel);
+  border: 1px solid #262a33;
+  border-radius: 8px;
+  padding: 0.85rem 1rem;
+}
+
+.run__row {
+  display: grid;
+  grid-template-columns: 6rem 1fr auto;
+  align-items: center;
+  gap: 0.5rem;
+  margin-bottom: 0.5rem;
+  font-size: 0.85rem;
+}
+
+.run__input {
+  font: inherit;
+  background: #0f1115;
+  color: var(--fg);
+  border: 1px solid #333844;
+  border-radius: 6px;
+  padding: 0.3rem 0.5rem;
+  min-width: 0;
+}
+
+.run__row button {
+  background: #262a33;
+  color: var(--fg);
+  border: 1px solid #333844;
+  border-radius: 6px;
+  padding: 0.3rem 0.6rem;
+  cursor: pointer;
+  font: inherit;
+  white-space: nowrap;
+}
+
+.run__notice {
+  margin: 0.5rem 0 0;
+  font-size: 0.8rem;
+  color: #ffd166;
+}
+
+.badge {
+  display: inline-block;
+  font-size: 0.65rem;
+  letter-spacing: 0.04em;
+  padding: 0.1rem 0.4rem;
+  border-radius: 999px;
+  border: 1px solid #333844;
+  color: var(--accent);
+  vertical-align: middle;
+  margin-left: 0.4rem;
+}
+
+.badge--warn {
+  color: #ffd166;
+  border-color: #6b5a25;
+}

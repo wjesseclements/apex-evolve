@@ -27,6 +27,8 @@ export function useKeyboardControls(
       controlsRef.current = { steering, throttle };
     };
     const down = (e: KeyboardEvent) => {
+      const target = e.target;
+      if (target instanceof HTMLInputElement || target instanceof HTMLTextAreaElement) return; // typing a seed
       if (DRIVING_KEYS.has(e.key)) {
         e.preventDefault(); // keep arrows from scrolling the page
         held.add(e.key);
