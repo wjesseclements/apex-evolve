@@ -90,3 +90,12 @@ export const DEFAULT_SIM: SimConfig = {
   progress: DEFAULT_PROGRESS,
   episode: DEFAULT_EPISODE,
 };
+
+export interface NetworkTopology {
+  readonly inputs: number;
+  readonly hidden: number;
+  readonly outputs: number;
+}
+
+/** SPEC: 8 inputs (7 rays + speed) → 10 tanh hidden → 2 tanh outputs (steering, throttle). */
+export const DEFAULT_NN: NetworkTopology = { inputs: 8, hidden: 10, outputs: 2 };
