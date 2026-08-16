@@ -31,6 +31,7 @@ export function Inspector({
         <div
           className="steer"
           role="meter"
+          aria-label="Steering (−1 left … +1 right)"
           aria-valuemin={-1}
           aria-valuemax={1}
           aria-valuenow={st}
@@ -92,6 +93,7 @@ function VBar({
       <div
         className="vbar__track"
         role="meter"
+        aria-label={label}
         aria-valuemin={0}
         aria-valuemax={1}
         aria-valuenow={v}

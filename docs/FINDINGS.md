@@ -148,3 +148,26 @@ than the training fitness because fitness includes the lap bonus.)
 - The steady ~25–35 % crash rate after convergence is the mutation tax
   (per-gene 10 % Gaussian σ = 0.2 on 95 offspring per generation) — the
   exploration budget, not a defect.
+
+## 8. Performance audit (Slice 5)
+
+- **Hot loop (plain Node, 100 cars, generation with most cars alive):
+  ~170 µs per tick**, i.e. ~1.7 µs per car — sensing 0.74 µs (7 quad-walk
+  rays), network forward 0.52 µs (112 MACs + 12 tanh), collision 0.31 µs
+  (4 corners × ≤ 3 quads), progress 0.08 µs, physics 0.05 µs. That is ~1 % of
+  a 60 fps frame at 1× and ~100× real time single-threaded; in the browser the
+  12 ms/frame budget of "max" mode reaches 130× real time early on (short,
+  crashy generations) and ~40× once everyone laps. Under Vitest the same loop
+  measures ~0.44 ms/tick (instrumentation); the app's own HUD shows
+  0.2–0.6 ms of sim + render per frame at 1×.
+- Nothing was optimized: sensing and the network already dominate and are
+  allocation-light; the immutable per-tick objects (Car, CarState, RayHit)
+  cost less than a millisecond a second at 1×. Determinism goldens make any
+  future micro-optimization safe to attempt.
+- **Bundle:** 250 kB JS (81 kB gzip — React + React DOM are ~180 kB of it),
+  6.6 kB CSS; no runtime dependencies beyond react, react-dom, zustand.
+- **Lighthouse (production, mobile emulation, while the sim runs at 16×):**
+  performance 94, accessibility 97 → 100 after labelling the inspector
+  meters, best practices 100, SEO 100; FCP 1.3 s, LCP 1.4 s, CLS 0, TBT
+  240 ms (the landing runs 16 ticks per frame from the first frame — that
+  main-thread work is the product, not overhead).
