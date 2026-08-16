@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { atan, atan2, cos, exp, hypot2, sin, tanh } from './dmath.ts';
+import { atan, atan2, cos, exp, hypot2, log, sin, tanh } from './dmath.ts';
 
 /** Units in the last place between two doubles (a is the reference). */
 function ulps(a: number, b: number): number {
@@ -157,6 +157,39 @@ describe('dmath.exp / tanh', () => {
   });
 });
 
+describe('dmath.log', () => {
+  it('agrees with Math.log to ≤ 2 ulp across magnitudes 1e-300..1e300 and densely on [0.25, 4]', () => {
+    for (let e = -300; e <= 300; e += 3) {
+      for (const m of [1, 1.2345, 2.5, 7.77, 9.999]) {
+        const x = m * 10 ** e;
+        expect(ulps(Math.log(x), log(x))).toBeLessThanOrEqual(2);
+      }
+    }
+    for (const x of sweep(0.25, 4, 30000)) expect(ulps(Math.log(x), log(x))).toBeLessThanOrEqual(2);
+    for (const x of sweep(1 - 1e-6, 1 + 1e-6, 2000)) {
+      expect(ulps(Math.log(x), log(x))).toBeLessThanOrEqual(2);
+    }
+  });
+
+  it('special values and subnormals', () => {
+    expect(log(1)).toBe(0);
+    expect(log(0)).toBe(-Infinity);
+    expect(log(-1)).toBeNaN();
+    expect(log(NaN)).toBeNaN();
+    expect(log(Infinity)).toBe(Infinity);
+    expect(ulps(Math.log(5e-324), log(5e-324))).toBeLessThanOrEqual(2);
+    expect(ulps(Math.log(1e-310), log(1e-310))).toBeLessThanOrEqual(2);
+    expect(ulps(1, log(Math.E))).toBeLessThanOrEqual(1);
+  });
+
+  it('log(exp(x)) round-trips to ~1e-15 relative', () => {
+    for (const x of sweep(-50, 50, 1001)) {
+      if (x === 0) continue;
+      expect(Math.abs(log(exp(x)) - x) / Math.abs(x)).toBeLessThan(1e-14);
+    }
+  });
+});
+
 describe('dmath.hypot2', () => {
   it('is √(x²+y²)', () => {
     expect(hypot2(3, 4)).toBe(5);
@@ -232,6 +265,15 @@ const GOLDEN: ReadonlyArray<readonly [label: string, expected: number, actual: n
   ['tanh(0.18)', 0.17808086811733023, tanh(0.18)],
   ['tanh(-1.234)', -0.8437356625893302, tanh(-1.234)],
   ['tanh(5e-9)', 5.000000000000001e-9, tanh(5e-9)],
+  ['log(0.5)', -0.6931471805599453, log(0.5)],
+  ['log(2)', 0.6931471805599453, log(2)],
+  ['log(3)', 1.0986122886681096, log(3)],
+  ['log(10)', 2.302585092994046, log(10)],
+  ['log(12345.678)', 9.421061321291832, log(12345.678)],
+  ['log(0.00001)', -11.512925464970229, log(0.00001)],
+  ['log(0.999999)', -0.000001000000500029089, log(0.999999)],
+  ['log(1.000001)', 9.999994999180668e-7, log(1.000001)],
+  ['log(7e+100)', 232.20441944845987, log(7e100)],
 ];
 
 describe('dmath golden pins (bit-exact across engines)', () => {

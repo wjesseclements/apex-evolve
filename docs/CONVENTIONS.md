@@ -58,7 +58,7 @@ above it.
 pow/hypot/log…`, and engines really do differ in the last bits (observed:
 macOS/arm64 Node 26 vs Linux/x64 Node 22 on a 1200-tick physics trajectory).
 Instead, `src/sim/math/dmath.ts` provides `sin, cos, atan, atan2, exp, tanh,
-hypot2` built from fdlibm's minimax kernels using only IEEE-754 basic
+log, hypot2` built from fdlibm's minimax kernels using only IEEE-754 basic
 arithmetic, `Math.sqrt` (hardware, correctly rounded), `floor/trunc/abs`. Those
 operations are exactly specified, so every sim result is bit-identical on every
 engine — a seed shared between two people replays the same run.
@@ -67,3 +67,12 @@ Enforced by ESLint (`no-restricted-properties` on `src/sim/**`, non-test files)
 and `scripts/check-sim-purity.sh` in CI, and proven by exact (`Object.is`)
 golden pins in `dmath.test.ts`, `car.test.ts`, and `world.test.ts` that must
 match on the developer machine and CI.
+
+## Randomness
+
+All randomness in `sim/` flows through an injected `Prng` from
+`src/sim/random/prng.ts` (mulberry32; integer-only core, so bit-identical
+everywhere). Its state is a single uint32 — `state()`/`restore()` are exact and
+there is no hidden cache (`nextGaussian` burns the second Box-Muller value).
+Seeds are uint32 numbers or strings (FNV-1a hashed). `Math.random` is banned by
+lint and by the CI purity grep.

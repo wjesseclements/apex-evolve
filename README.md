@@ -67,7 +67,8 @@ pins in the tests are checked on macOS/arm64 and Linux/x64 CI. See
 ```
 src/sim/     pure, headless simulation — no DOM, no timers, no Math.random, no Math.sin/cos/…
   config.ts    every physics constant, typed and documented with units
-  math/        vec2 helpers + dmath.ts (deterministic sin/cos/atan2/exp/tanh)
+  math/        vec2 helpers + dmath.ts (deterministic sin/cos/atan2/exp/tanh/log)
+  random/      seeded PRNG (mulberry32) — the only source of randomness
   physics/     arcade car model (stepCar), body corners
   track/       track JSON → mitered edges; localized nearest-segment + collision;
                checkpoints + progress metric
