@@ -6,6 +6,8 @@
 import { create } from 'zustand';
 import type { Selection } from '../render/hitTest.ts';
 import { DEFAULT_GA } from '../sim/config.ts';
+import type { Genome } from '../sim/nn/network.ts';
+import { isTrackId, type TrackId } from '../sim/track/tracks.ts';
 import type { Speed } from './tickPlanner.ts';
 
 /** SPEC "default seed": the run everyone sees first, and the one the tests pin. */
@@ -22,6 +24,22 @@ function seedFromUrl(): number | string {
   if (typeof window === 'undefined') return DEFAULT_SEED;
   const q = new URLSearchParams(window.location.search).get('seed');
   return q === null ? DEFAULT_SEED : parseSeed(q);
+}
+
+function trackFromUrl(): TrackId {
+  if (typeof window === 'undefined') return 'training';
+  const q = new URLSearchParams(window.location.search).get('track');
+  return q !== null && isTrackId(q) ? q : 'training';
+}
+
+/** Reflect seed + track in the address bar so a run is a shareable link. */
+export function syncUrl(seed: number | string, track: TrackId): void {
+  if (typeof window === 'undefined') return;
+  const url = new URL(window.location.href);
+  url.searchParams.set('seed', String(seed));
+  if (track === 'training') url.searchParams.delete('track');
+  else url.searchParams.set('track', track);
+  window.history.replaceState(null, '', url.toString());
 }
 
 export type Mode = 'evolve' | 'drive';
@@ -41,7 +59,13 @@ export interface UiState {
   readonly crossoverEnabled: boolean;
   /** Last import/export status line, or null. */
   readonly notice: string | null;
+  /** Which track the (next) session runs on. */
+  readonly trackId: TrackId;
+  /** A genome to inject as car #0 when the next Evolve session is created (used by "test on the other track"). */
+  readonly pendingGenome: Genome | null;
   setSelection: (selection: Selection | null) => void;
+  setTrackId: (trackId: TrackId) => void;
+  setPendingGenome: (genome: Genome | null) => void;
   setSeed: (seed: number | string) => void;
   setMutationRate: (rate: number) => void;
   setCrossoverEnabled: (on: boolean) => void;
@@ -66,7 +90,11 @@ export const useUiStore = create<UiState>((set) => ({
   mutationRate: DEFAULT_GA.mutationRate,
   crossoverEnabled: DEFAULT_GA.crossoverEnabled,
   notice: null,
+  trackId: trackFromUrl(),
+  pendingGenome: null,
   setSelection: (selection) => set({ selection }),
+  setTrackId: (trackId) => set({ trackId, selection: null }),
+  setPendingGenome: (pendingGenome) => set({ pendingGenome }),
   setSeed: (seed) => set({ seed }),
   setMutationRate: (mutationRate) => set({ mutationRate }),
   setCrossoverEnabled: (crossoverEnabled) => set({ crossoverEnabled }),

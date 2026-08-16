@@ -126,6 +126,8 @@ export function Hud({
               {paused ? 'paused' : speed === 'max' ? 'max' : `${speed}×`}
               {hud ? ` · ${fmt(hud.ticksPerSecond / 60, 1)}× real time` : ''}
             </dd>
+            <dt>Track</dt>
+            <dd>{world.track.name === 'training' ? 'A — training' : 'B — held-out'}</dd>
             <dt>Seed</dt>
             <dd>
               {String(evo.cfg.seed)}

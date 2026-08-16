@@ -10,7 +10,7 @@ import {
   type ProgressState,
 } from './progress.ts';
 import { buildTrack } from './track.ts';
-import { TRAINING_TRACK } from './tracks.ts';
+import { HELDOUT_TRACK, TRAINING_TRACK } from './tracks.ts';
 
 const square = buildTrack(SQUARE); // 400 m, clockwise: (0,0)→(100,0)→(100,100)→(0,100)
 
@@ -189,19 +189,22 @@ describe('progress — square with checkpoints every 100 m', () => {
   });
 });
 
-describe('progress — training track sanity', () => {
+describe.each([
+  ['training', TRAINING_TRACK],
+  ['heldout', HELDOUT_TRACK],
+])('progress — %s track sanity', (_name, track) => {
   it('walking the centerline forward with 5 m checkpoints is monotone and ends at ~one lap', () => {
-    const cps = buildCheckpoints(TRAINING_TRACK, 5);
-    let st = initialProgress(TRAINING_TRACK, cps, TRAINING_TRACK.centerline[0]!, 0);
+    const cps = buildCheckpoints(track, 5);
+    let st = initialProgress(track, cps, track.centerline[0]!, 0);
     let prev = 0;
-    const n = TRAINING_TRACK.centerline.length;
+    const n = track.centerline.length;
     for (let i = 1; i <= n; i++) {
-      st = updateProgress(TRAINING_TRACK, cps, st, TRAINING_TRACK.centerline[i % n]!);
+      st = updateProgress(track, cps, st, track.centerline[i % n]!);
       expect(st.progress).toBeGreaterThan(prev);
       prev = st.progress;
     }
     // Back at the start vertex: exactly one lap.
     expect(lapsOf(st, cps)).toBe(1);
-    expect(st.progress).toBeCloseTo(TRAINING_TRACK.totalLength, 6);
+    expect(st.progress).toBeCloseTo(track.totalLength, 6);
   });
 });

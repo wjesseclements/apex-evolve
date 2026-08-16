@@ -1,7 +1,8 @@
 import { useCallback, useMemo, useRef } from 'react';
 import { DEFAULT_GA, DEFAULT_NN, DEFAULT_SIM } from '../sim/config.ts';
 import { NEUTRAL_CONTROLS, type CarControls } from '../sim/physics/car.ts';
-import { TRAINING_TRACK } from '../sim/track/tracks.ts';
+import { injectGenome } from '../sim/engine/evolution.ts';
+import { TRACKS } from '../sim/track/tracks.ts';
 import { Hud } from './Hud.tsx';
 import { RunControls } from './RunControls.tsx';
 import { createDriveSession, createEvolveSession } from './session.ts';
@@ -23,11 +24,12 @@ export function App() {
   const { setMode, toggleMode, setSpeed, togglePaused, toggleSensors, toggleDebug } =
     useUiStore.getState();
 
+  const trackId = useUiStore((s) => s.trackId);
   const createSession = useMemo(
     () =>
       mode === 'evolve'
-        ? () =>
-            createEvolveSession(TRAINING_TRACK, () => {
+        ? () => {
+            const session = createEvolveSession(TRACKS[trackId], () => {
               const st = useUiStore.getState();
               return {
                 sim: DEFAULT_SIM,
@@ -39,9 +41,23 @@ export function App() {
                 nn: DEFAULT_NN,
                 seed: st.seed,
               };
-            })
-        : () => createDriveSession(TRAINING_TRACK, DEFAULT_SIM),
-    [mode],
+            });
+            // "Test best genome on the other track": a genome handed over from the
+            // previous session becomes car #0 here (marks the run modified).
+            const st = useUiStore.getState();
+            const evo = session.evolution();
+            if (st.pendingGenome && evo) {
+              injectGenome(evo, st.pendingGenome, 0);
+              st.setPendingGenome(null);
+              st.setSelection({ index: 0, generation: 0 });
+              st.setNotice(
+                `Best genome from the other track is driving as car #0 on "${trackId}". Run is modified.`,
+              );
+            }
+            return session;
+          }
+        : () => createDriveSession(TRACKS[trackId], DEFAULT_SIM),
+    [mode, trackId],
   );
   const sim = useSimLoop(canvasRef, createSession, controlsRef);
   const { reset, clickAt } = sim;

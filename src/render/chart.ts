@@ -81,7 +81,7 @@ export function layoutFitnessChart(
   const xOf = (gen: number) => plot.left + (gen / genMax) * plot.width;
   const yOf = (v: number) => plot.top + plot.height - (v / yMax) * plot.height;
   const xTicks: { gen: number; x: number }[] = [];
-  const xStep = niceStep(genMax, 6);
+  const xStep = Math.max(1, niceStep(genMax, 6)); // generations are integers
   for (let g = 0; g <= genMax + 1e-9; g += xStep) xTicks.push({ gen: g, x: xOf(g) });
   const yTicks: { value: number; y: number }[] = [];
   for (let v = 0; v <= yMax + 1e-9; v += yStep) yTicks.push({ value: v, y: yOf(v) });
