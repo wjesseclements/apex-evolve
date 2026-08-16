@@ -1,5 +1,6 @@
 import { fitnessOf } from '../sim/engine/evolution.ts';
-import { isEpisodeOver } from '../sim/engine/world.ts';
+import { bestLapSeconds, isEpisodeOver } from '../sim/engine/world.ts';
+import { FitnessChart } from './FitnessChart.tsx';
 import { lapsOf, nextCheckpointIndex } from '../sim/track/progress.ts';
 import type { Speed } from './tickPlanner.ts';
 import type { HudSnapshot } from './useSimLoop.ts';
@@ -63,6 +64,13 @@ export function Hud({
   const liveBest = world ? Math.max(0, ...world.cars.map(fitnessOf)) : 0;
   const liveLaps = world && cps ? world.cars.filter((x) => lapsOf(x.progress, cps) >= 1).length : 0;
   const lastGen = evo?.history[evo.history.length - 1];
+  const dt = world?.cfg.physics.dt ?? 1 / 60;
+  const liveBestLap = world
+    ? world.cars.reduce<number | null>((acc, x) => {
+        const t = bestLapSeconds(x, dt);
+        return t !== null && (acc === null || t < acc) ? t : acc;
+      }, null)
+    : null;
 
   return (
     <aside className="hud" aria-label="Stats">
@@ -84,12 +92,22 @@ export function Hud({
                 ? `${fmt(evo.bestEver.fitness)} m  (gen ${evo.bestEver.generation})`
                 : '—'}
             </dd>
-            <dt>Laps (this gen)</dt>
-            <dd>{liveLaps}</dd>
-            <dt>Last gen</dt>
+            <dt>Mean (last gen)</dt>
+            <dd>{lastGen ? `${fmt(lastGen.mean)} m` : '—'}</dd>
+            <dt>Deaths (last gen)</dt>
             <dd>
               {lastGen
-                ? `mean ${fmt(lastGen.mean)} m · crash ${fmt(lastGen.crashRate * 100, 0)}% · stall ${fmt(lastGen.stallRate * 100, 0)}%`
+                ? `crash ${fmt(lastGen.crashRate * 100, 0)}% · stall ${fmt(lastGen.stallRate * 100, 0)}%`
+                : '—'}
+            </dd>
+            <dt>Laps (this gen)</dt>
+            <dd>{liveLaps}</dd>
+            <dt>Best lap</dt>
+            <dd>{liveBestLap !== null ? `${fmt(liveBestLap, 2)} s (this gen)` : '—'}</dd>
+            <dt>Best lap ever</dt>
+            <dd>
+              {evo.bestLapEver
+                ? `${fmt(evo.bestLapEver.seconds, 2)} s (gen ${evo.bestLapEver.generation})`
                 : '—'}
             </dd>
             <dt>Episode</dt>
@@ -104,6 +122,8 @@ export function Hud({
             <dt>Crossover</dt>
             <dd>{evo.cfg.ga.crossoverEnabled ? 'on' : 'off'}</dd>
           </dl>
+          <h3 className="hud__sub">Fitness per generation (metres of track)</h3>
+          <FitnessChart history={evo.history} />
         </>
       )}
       <h2 className="hud__title">{evo ? 'Leader telemetry' : 'Telemetry'}</h2>

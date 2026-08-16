@@ -19,7 +19,7 @@ import {
 import { senseCar, type SensorReading } from '../sensors/sensors.ts';
 import { buildCheckpoints, type Checkpoints } from '../track/checkpoints.ts';
 import { carCollides } from '../track/collision.ts';
-import { initialProgress, updateProgress, type ProgressState } from '../track/progress.ts';
+import { initialProgress, lapsOf, updateProgress, type ProgressState } from '../track/progress.ts';
 import type { Track } from '../track/track.ts';
 
 export interface Car {
@@ -44,6 +44,8 @@ export interface Car {
   readonly sensors: SensorReading;
   /** Checkpoint/progress bookkeeping (see track/progress.ts). Frozen when dead. */
   readonly progress: ProgressState;
+  /** Tick at which each completed lap was crossed (lapTicks[k] = end of lap k+1). */
+  readonly lapTicks: readonly number[];
 }
 
 export interface World {
@@ -72,6 +74,7 @@ export function spawnCar(track: Track, cfg: SimConfig, checkpoints: Checkpoints)
     segmentHint: 0,
     sensors: senseCar(track, state, 0, cfg),
     progress: initialProgress(track, checkpoints, state, 0),
+    lapTicks: [],
   };
 }
 
@@ -113,6 +116,7 @@ export function stepCarOnTrack(
   track: Track,
   cfg: SimConfig,
   checkpoints: Checkpoints,
+  tick: number,
 ): Car {
   if (!car.alive) return car;
   const state = stepCar(car.state, controls, cfg.physics);
@@ -122,6 +126,7 @@ export function stepCarOnTrack(
     cfg.episode.stallSeconds !== null &&
     stallTicks * cfg.physics.dt >= cfg.episode.stallSeconds - 1e-9;
   const deathCause: Car['deathCause'] = hit.collided ? 'wall' : stalled ? 'stall' : null;
+  const progress = updateProgress(track, checkpoints, car.progress, state);
   return {
     state,
     controls,
@@ -134,8 +139,27 @@ export function stepCarOnTrack(
     // sensing from an off-track origin would report all-zero rays.
     sensors: hit.collided ? car.sensors : senseCar(track, state, hit.segment, cfg),
     // Progress is still credited for the tick of the crash: the car did travel there.
-    progress: updateProgress(track, checkpoints, car.progress, state),
+    progress,
+    lapTicks:
+      lapsOf(progress, checkpoints) > lapsOf(car.progress, checkpoints)
+        ? [...car.lapTicks, tick]
+        : car.lapTicks,
   };
+}
+
+/**
+ * Sim-seconds of the car's fastest completed lap, or null. Lap 1 is timed
+ * from the standing start at tick 0; later laps are flying laps.
+ */
+export function bestLapSeconds(car: Car, dt: number): number | null {
+  let best: number | null = null;
+  let prev = 0;
+  for (const t of car.lapTicks) {
+    const lap = (t - prev) * dt;
+    if (best === null || lap < best) best = lap;
+    prev = t;
+  }
+  return best;
 }
 
 /**
@@ -157,6 +181,7 @@ export function stepWorld(
       world.track,
       world.cfg,
       world.checkpoints,
+      tick,
     );
     return next.alive || !car.alive ? next : { ...next, crashedAtTick: tick };
   });

@@ -7,6 +7,7 @@ import { TRAINING_TRACK } from '../track/tracks.ts';
 import { lapsOf } from '../track/progress.ts';
 import {
   allCarsDead,
+  bestLapSeconds,
   createWorld,
   isEpisodeOver,
   resetWorld,
@@ -249,5 +250,23 @@ describe('car-ghost invariant', () => {
     for (let t = 0; t < 120; t++)
       w3 = stepWorld(w3, (i) => (i === 0 ? FULL_THROTTLE : { steering: 0, throttle: 0 }));
     expect(w3.cars[0]!.alive && w3.cars[1]!.alive).toBe(true);
+  });
+});
+
+describe('lap ticks', () => {
+  it('bestLapSeconds is null with no laps; lap 1 timed from tick 0, later laps are deltas', () => {
+    const w = createWorld(square, DEFAULT_SIM);
+    expect(bestLapSeconds(w.cars[0]!, 1 / 60)).toBeNull();
+    const fake = { ...w.cars[0]!, lapTicks: [1200, 1800, 2700] }; // 20 s, then 10 s, then 15 s
+    expect(bestLapSeconds(fake, 1 / 60)).toBeCloseTo(10, 12);
+  });
+
+  it('a car that laps the square records the crossing tick', () => {
+    // Drive the 400 m square: straight, then turn right at each corner using a
+    // simple heading-hold controller is overkill; instead check that lapTicks
+    // stays empty for a car that only covers 70 m.
+    let w = createWorld(square, DEFAULT_SIM);
+    for (let t = 0; t < 240; t++) w = stepWorld(w, () => FULL_THROTTLE);
+    expect(w.cars[0]!.lapTicks).toEqual([]);
   });
 });

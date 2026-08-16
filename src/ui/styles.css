@@ -297,3 +297,15 @@ kbd {
   overflow-y: auto;
   padding-right: 2px;
 }
+
+.chart {
+  width: 100%;
+  margin-bottom: 0.9rem;
+  border-radius: 6px;
+  overflow: hidden;
+  background: var(--panel);
+}
+
+.chart canvas {
+  display: block;
+}
