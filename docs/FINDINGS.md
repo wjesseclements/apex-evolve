@@ -1,11 +1,40 @@
-# Findings (Slice 4)
+# Findings
 
 Everything below is reproducible: the simulation is bit-identical across JS
 engines, so `node scripts/evolve-headless.ts <gens> <seed> [crossover] [gripA] [lapBonus]`,
 `node scripts/inspect-champion.ts …` and `node scripts/generalize.ts` print
 exactly these numbers on any machine (Node ≥ 22.18).
 
-## 1. The grip limit turns "steer" into "brake, then steer"
+## 1. Headline: crossover escapes the plateau 50 generations earlier
+
+The most consequential single result of the project. Uniform crossover is
+OFF by default (SPEC frames it as an A/B toggle; mutation-only is the
+baseline) — and that framing is exactly what made the comparison possible:
+same seed, one flag, otherwise bit-identical runs.
+
+60 generations, seeds 42–44, everything else default:
+
+| seed | crossover | first lap gen | gen 30 best / mean | gen 60 best / mean | best lap |
+|---|---|---|---|---|---|
+| 42 | off | — | 192.0 / 113.6 | 232.5 / 184.7 | — |
+| 42 | **on** | **10** | 808.4 / 537.3 | 840.4 / 602.5 | 18.60 s |
+| 43 | off | 9 | 830.4 / 690.5 | 848.3 / 660.1 | 18.33 s |
+| 43 | on | 6 | 840.1 / 533.0 | 844.5 / 638.6 | 18.47 s |
+| 44 | off | 10 | 793.1 / 562.0 | 830.7 / 643.7 | 18.72 s |
+| 44 | on | 8 | 852.9 / 574.9 | 889.7 / 601.3 | 17.62 s |
+
+On the benchmark seed, mutation alone needs 60 generations to find a genome
+that lifts before the left-hand kink; with crossover the population combines
+partial solutions and laps at **generation 10**. First laps also came earlier
+on seeds 43 and 44 (6 vs 9, 8 vs 10); final bests were slightly higher with
+crossover on for 2 of 3 seeds, means mixed (crossover keeps more diversity in
+the pool). Interpretation: with a 112-parameter genome and a fitness landscape
+that has a plateau in front of one specific corner, recombining two decent
+parents finds "lift here" more often than 0.2-σ Gaussian nudges to a single
+parent do. The default stays off so the baseline is the plainest possible GA;
+the toggle (`?seed=42&crossover=1`) is a one-click experiment.
+
+## 2. The grip limit turns "steer" into "brake, then steer"
 
 Without a grip limit (Slices 0–3) the arcade model has a speed-independent
 minimum turn radius (`vMax / steerRate = 12 m`), so every corner is takeable
@@ -70,34 +99,48 @@ The 60-generation plateau at ~190–230 m is the population failing the
 left-hand kink at speed; the jump at gen 60 is the first genome that lifts
 before it. Ten generations later most of the population laps.
 
-## 2. The lap-time bonus changed fitness values, not selection
+## 3. The lap-time bonus: rationale stated, tested, found unnecessary — kept per SPEC
 
-`fitness = progress + 2000 / bestLapSeconds` for cars that completed a lap.
-Seed 42 with `lapBonus = 2000` vs `0`, 100 generations: **identical best
-progress and lap-time trajectories through gen 90** (22.38 → 19.30 s). In a
-30 s episode, progress already ranks lap speed, so the bonus does not change
-who gets selected on this seed; it makes "lap time" an explicit objective and
-protects lap completion as a trait, which is why it stays on by default.
+The SPEC's fitness is progress plus a lap-time bonus for finishers
+(`fitness = progress + 2000 / bestLapSeconds`). The stated rationale before
+testing: the completion step (~100–133 metre-equivalents) protects
+lap-finishing as a trait, and it rewards lap time directly rather than 30 s
+throughput.
 
-## 3. Crossover helps the unlucky seed
+Tested: seed 42, grip on, 100 generations, `lapBonus = 2000` vs `0`. Result:
+**identical best-progress and lap-time trajectories through gen 90**
+(22.38 → 19.30 s), diverging only in the fitness numbers. In a 30 s episode,
+progress already ranks lap speed — a faster car simply covers more track — so
+the bonus did not change a single selection decision on this seed.
 
-Uniform crossover (behind the config flag; off by default), 60 generations:
+Conclusion: the rationale did not survive contact with the data; on this task
+the bonus is unnecessary. It is kept because the SPEC defines the fitness that
+way and it makes "lap time" an explicit, readable objective — but the README
+does not claim it helps. (`lapBonus: 0` in `sim/config.ts` reproduces the
+comparison.)
 
-| seed | crossover | first lap gen | gen 30 best / mean | gen 60 best / mean | best lap |
-|---|---|---|---|---|---|
-| 42 | off | — | 192.0 / 113.6 | 232.5 / 184.7 | — |
-| 42 | **on** | **10** | 808.4 / 537.3 | 840.4 / 602.5 | 18.60 s |
-| 43 | off | 9 | 830.4 / 690.5 | 848.3 / 660.1 | 18.33 s |
-| 43 | on | 6 | 840.1 / 533.0 | 844.5 / 638.6 | 18.47 s |
-| 44 | off | 10 | 793.1 / 562.0 | 830.7 / 643.7 | 18.72 s |
-| 44 | on | 8 | 852.9 / 574.9 | 889.7 / 601.3 | 17.62 s |
+## 4. Exploits and surprises evolution found
 
-Crossover pulled seed 42 off its plateau 50 generations earlier and gave
-earlier first laps on the other seeds; final bests were slightly higher with
-crossover on for 2 of 3 seeds, means mixed. Same-seed A/B in the app:
-`?seed=42` with the crossover toggle.
+- **The inside line, before anyone asked for it.** Without a grip limit, the
+  seed-42 champion's best lap was 13.63 s — an average of 32.3 m/s on a car
+  that tops out at 30 m/s along the centerline. Its path is ~7 % shorter than
+  the 440 m centerline: it hugs the inside of every corner. The same effect
+  showed up as fitness 906 m > 900 m (= vMax × 30 s) — the progress metric
+  measures centerline metres, so a shorter line "earns" more than the car
+  physically drove.
+- **Lift, don't brake.** With the grip limit, the champions mostly *coast*
+  (throttle 0–0.5 for 23–32 % of ticks) and only tap the brake (1–2 %) on the
+  two hardest entries. Drag does the rest. A human would brake; the network
+  found that lifting early is cheaper than braking late.
+- **The stall rule shaped generation 0.** 64 % of the random population stalls
+  (never moves) and 36 % crashes; the rule (3 s below 0.5 m/s ⇒ dead) exists so
+  those cars don't consume the whole 30 s. It changed nothing about fitness
+  but everything about wall-clock.
+- **Elites are visible.** Because the top 5 are copied unchanged and drive
+  identically, the population visually clusters into a few "cars" — 100 ghosts,
+  most exactly overlapping.
 
-## 4. Generalization: train on A, test on B (and back)
+## 5. Generalization: train on A, test on B (and back)
 
 Protocol fixed before running: seeds 42–46, 40 generations, the champion
 (bestEver) run **solo** for one 30 s episode on the other track; report
@@ -134,17 +177,38 @@ generalization of a *reflex*, not a memorised line: the networks see only 7
 wall distances and their speed. (Note the "own-track solo" progress is lower
 than the training fitness because fitness includes the lap bonus.)
 
-## 5. Engineering notes worth keeping
+## 6. Testing strategy: property sweeps over real geometry (the project's MVP)
+
+Every geometry module has hand-computed cases on a 100 m square (edges,
+quads, rays, arc positions), *and* a property/invariant sweep over the real
+track(s): "for every centerline vertex, every ray sample lies on the surface
+and 5 cm past the hit is off it"; "for every point on a sweep across the
+track, the hint-localized containment test agrees with the full scan"; "walking
+the centerline is monotone and ends at exactly one lap"; "clicking exactly on
+every living car returns it". The hand-computed cases never failed after
+first commit. The sweeps caught three real bugs:
+
+1. **Raycast, Slice 1** — a ray whose origin sat exactly on a shared quad
+   boundary (the start pose!) failed to exit under the "exclude the entry edge"
+   walk; switched to Cyrus-Beck exits.
+2. **Quad containment, Slice 4** — a point exactly on the boundary between two
+   drivable quads produced a ±1e-15 cross-product sign and was rejected by
+   *both* quads (found only when the second track was swept); fixed with a
+   1e-9 m² tolerance.
+3. **Sensor sweep, Slice 1** — documented the 4.5° tilt of the closing segment
+   on track A (a real geometric fact, not a bug, that would otherwise have
+   read as "the side ray is wrong").
+
+The other pillar is bit-exact golden pins (physics, world, sensors, PRNG,
+GA, evolution) checked on macOS/arm64 and Linux/x64 CI, which turn "same seed
+⇒ same run" from a hope into a tripwire.
+
+## 7. Engineering notes worth keeping
 
 - **Cross-engine bit-identity is real, and cheap once you own the math.** V8
   on Linux/x64 already used fdlibm-derived trig; macOS/arm64 differed in the
   last bits. Owning sin/cos/atan2/exp/tanh/log (fdlibm kernels) made every
   golden pin pass everywhere and made `?seed=…` links replay exactly.
-- **Property/sweep tests earned their keep three times**: the raycast that
-  failed when the origin sat exactly on a shared quad boundary; the
-  containment test that rejected a point exactly on a shared boundary
-  (found only when the second track was swept); and the sensor sweep that
-  documented the 4.5° tilt of the closing segment on track A.
 - The steady ~25–35 % crash rate after convergence is the mutation tax
   (per-gene 10 % Gaussian σ = 0.2 on 95 offspring per generation) — the
   exploration budget, not a defect.
