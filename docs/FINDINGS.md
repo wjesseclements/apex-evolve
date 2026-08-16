@@ -231,7 +231,7 @@ GA, evolution) checked on macOS/arm64 and Linux/x64 CI, which turn "same seed
 - **Bundle:** 250 kB JS (81 kB gzip — React + React DOM are ~180 kB of it),
   6.6 kB CSS; no runtime dependencies beyond react, react-dom, zustand.
 - **Lighthouse (production, mobile emulation, while the sim runs at 16×):**
-  performance 94, accessibility 97 → 100 after labelling the inspector
-  meters, best practices 100, SEO 100; FCP 1.3 s, LCP 1.4 s, CLS 0, TBT
+  performance 94–100 across runs, accessibility 97 → 100 after labelling the
+  inspector meters, best practices 100, SEO 100; FCP 1.3 s, LCP 1.4 s, CLS 0, TBT
   240 ms (the landing runs 16 ticks per frame from the first frame — that
   main-thread work is the product, not overhead).

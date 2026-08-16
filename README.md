@@ -147,6 +147,15 @@ throttle/brake → clamp → drag → yaw (`ω = steering·steerRate·v/vMax`, t
 positive steering = right. All of it is documented in
 [docs/CONVENTIONS.md](docs/CONVENTIONS.md).
 
+## Performance
+
+~170 µs per simulation tick for 100 cars in plain Node (sensing 0.74 µs and
+the network 0.52 µs per car dominate) — about 1 % of a 60 fps frame at 1×,
+~100× real time single-threaded; "max" mode runs a 12 ms budget per frame.
+250 kB JS (81 kB gzip). Lighthouse on the deployed page: performance 94–100
+(varies run to run), accessibility 100, best practices 100, SEO 100. Details
+in [docs/FINDINGS.md](docs/FINDINGS.md) §8.
+
 ## Testing strategy
 
 Every geometry module has hand-computed cases on a 100 m square **and** a
