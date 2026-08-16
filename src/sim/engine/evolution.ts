@@ -1,0 +1,195 @@
+/**
+ * Evolution orchestrator (SPEC "Simulation engine"): runs a population of
+ * NN-driven cars through episodes, scores them, breeds the next generation.
+ *
+ * Per tick: each living car's controls are the network output for its stored
+ * observation (`car.sensors.inputs`, sensed at the end of the previous tick);
+ * the world steps once. When the episode ends (timer, or every car dead) the
+ * generation is scored — fitness = `car.progress.progress` in metres (lap-time
+ * bonus arrives in Slice 4) — a GenerationRecord is appended, the GA breeds
+ * the next population and a fresh world is created.
+ *
+ * `Evolution` is a mutable orchestrator object (it owns the Prng, whose state
+ * advances); the worlds it holds are the usual immutable snapshots. All
+ * randomness comes from its single seeded Prng, so a seed determines the whole
+ * run bit-for-bit — verified by the reproducibility tests.
+ */
+
+import type { GaConfig, NetworkTopology, SimConfig } from '../config.ts';
+import { initPopulation, nextGeneration, type ScoredGenome } from '../ga/ga.ts';
+import { createScratch, forward, type Genome } from '../nn/network.ts';
+import { NEUTRAL_CONTROLS, type CarControls } from '../physics/car.ts';
+import { createPrng, type Prng } from '../random/prng.ts';
+import { lapsOf } from '../track/progress.ts';
+import type { Track } from '../track/track.ts';
+import {
+  allCarsDead,
+  createWorld,
+  isEpisodeOver,
+  stepWorld,
+  type Car,
+  type World,
+} from './world.ts';
+
+export interface EvolutionConfig {
+  readonly sim: SimConfig;
+  readonly ga: GaConfig;
+  readonly nn: NetworkTopology;
+  readonly seed: number | string;
+}
+
+export interface GenerationRecord {
+  /** 0-based generation index. */
+  readonly generation: number;
+  readonly best: number;
+  readonly mean: number;
+  readonly median: number;
+  /** Fraction of cars that died by touching a wall. */
+  readonly crashRate: number;
+  /** Fraction of cars that died by the stall rule. */
+  readonly stallRate: number;
+  /** Cars that completed ≥ 1 lap. */
+  readonly lapCompletions: number;
+  /** Index (in that generation's population) of the best car. */
+  readonly bestIndex: number;
+  /** Ticks the episode lasted. */
+  readonly ticks: number;
+}
+
+export interface BestEver {
+  readonly fitness: number;
+  readonly genome: Genome;
+  readonly generation: number;
+}
+
+export interface Evolution {
+  readonly cfg: EvolutionConfig;
+  readonly track: Track;
+  readonly rng: Prng;
+  generation: number;
+  population: readonly Genome[];
+  world: World;
+  history: GenerationRecord[];
+  bestEver: BestEver | null;
+  /** Scratch buffers reused every tick (never part of the observable state). */
+  readonly out: Float64Array;
+  readonly scratch: Float64Array;
+}
+
+export function createEvolution(track: Track, cfg: EvolutionConfig): Evolution {
+  const rng = createPrng(cfg.seed);
+  const population = initPopulation(cfg.nn, cfg.ga, rng);
+  return {
+    cfg,
+    track,
+    rng,
+    generation: 0,
+    population,
+    world: createWorld(track, cfg.sim, population.length),
+    history: [],
+    bestEver: null,
+    out: new Float64Array(cfg.nn.outputs),
+    scratch: createScratch(cfg.nn),
+  };
+}
+
+/** Controls for car i from its genome and stored observation. */
+function drive(evo: Evolution, i: number, car: Car): CarControls {
+  if (!car.alive) return NEUTRAL_CONTROLS;
+  const genome = evo.population[i];
+  if (!genome) return NEUTRAL_CONTROLS;
+  forward(evo.cfg.nn, genome, car.sensors.inputs, evo.out, evo.scratch);
+  return { steering: evo.out[0] ?? 0, throttle: evo.out[1] ?? 0 };
+}
+
+/** Fitness of a car (Slice 2: progress in metres). */
+export function fitnessOf(car: Car): number {
+  return car.progress.progress;
+}
+
+/** Index of the car with the highest fitness so far (ties → lowest index). */
+export function leaderIndex(world: World): number {
+  let best = 0;
+  let bestF = -Infinity;
+  world.cars.forEach((c, i) => {
+    const f = fitnessOf(c);
+    if (f > bestF) {
+      bestF = f;
+      best = i;
+    }
+  });
+  return best;
+}
+
+/** Has the current episode ended (timer elapsed or every car dead)? */
+export function episodeDone(evo: Evolution): boolean {
+  return isEpisodeOver(evo.world) || allCarsDead(evo.world);
+}
+
+/**
+ * Advance one tick. If the current episode is over, the generation is scored
+ * and the next one is started instead (that call performs no world tick).
+ * Returns true when a generation boundary was crossed.
+ */
+export function stepEvolution(evo: Evolution): boolean {
+  if (episodeDone(evo)) {
+    finishGeneration(evo);
+    return true;
+  }
+  evo.world = stepWorld(evo.world, (i, car) => drive(evo, i, car));
+  return false;
+}
+
+/** Score the finished episode, record it, breed the next population, reset the world. */
+export function finishGeneration(evo: Evolution): GenerationRecord {
+  const cars = evo.world.cars;
+  const scored: ScoredGenome[] = cars.map((car, i) => ({
+    genome: evo.population[i] ?? new Float32Array(0),
+    fitness: fitnessOf(car),
+  }));
+  const fits = scored.map((s) => s.fitness);
+  const sorted = [...fits].sort((a, b) => a - b);
+  const n = fits.length;
+  const bestIndex = leaderIndex(evo.world);
+  const record: GenerationRecord = {
+    generation: evo.generation,
+    best: fits[bestIndex] ?? 0,
+    mean: n ? fits.reduce((a, b) => a + b, 0) / n : 0,
+    median: medianOf(sorted),
+    crashRate: n ? cars.filter((c) => c.deathCause === 'wall').length / n : 0,
+    stallRate: n ? cars.filter((c) => c.deathCause === 'stall').length / n : 0,
+    lapCompletions: cars.filter((c) => lapsOf(c.progress, evo.world.checkpoints) >= 1).length,
+    bestIndex,
+    ticks: evo.world.tick,
+  };
+  evo.history.push(record);
+  const bestGenome = evo.population[bestIndex];
+  if (bestGenome && (evo.bestEver === null || record.best > evo.bestEver.fitness)) {
+    evo.bestEver = {
+      fitness: record.best,
+      genome: new Float32Array(bestGenome),
+      generation: evo.generation,
+    };
+  }
+  evo.population = nextGeneration(scored, evo.cfg.ga, evo.rng);
+  evo.generation += 1;
+  evo.world = createWorld(evo.track, evo.cfg.sim, evo.population.length);
+  return record;
+}
+
+/** Median of an ascending-sorted array (0 for empty). */
+function medianOf(sorted: readonly number[]): number {
+  const n = sorted.length;
+  if (n === 0) return 0;
+  const mid = Math.floor(n / 2);
+  const hi = sorted[mid] ?? 0;
+  if (n % 2 === 1) return hi;
+  const lo = sorted[mid - 1] ?? 0;
+  return (lo + hi) / 2;
+}
+
+/** Run until `count` more generations have been completed (headless helper for tests/CLI). */
+export function runGenerations(evo: Evolution, count: number): void {
+  const target = evo.generation + count;
+  while (evo.generation < target) stepEvolution(evo);
+}

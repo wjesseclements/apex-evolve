@@ -155,7 +155,7 @@ describe('stepWorld', () => {
 
 describe('episode timer', () => {
   it('the world freezes once time reaches cfg.episode.seconds: no further ticks, cars stop moving', () => {
-    const cfg = { ...DEFAULT_SIM, episode: { seconds: 1 } };
+    const cfg = { ...DEFAULT_SIM, episode: { ...DEFAULT_SIM.episode, seconds: 1 } };
     let w = createWorld(square, cfg);
     for (let t = 0; t < 100; t++) w = stepWorld(w, () => FULL_THROTTLE);
     expect(w.tick).toBe(60);
@@ -168,7 +168,7 @@ describe('episode timer', () => {
   });
 
   it('is not over before the deadline; reset starts a fresh episode', () => {
-    const cfg = { ...DEFAULT_SIM, episode: { seconds: 1 } };
+    const cfg = { ...DEFAULT_SIM, episode: { ...DEFAULT_SIM.episode, seconds: 1 } };
     let w = createWorld(square, cfg);
     for (let t = 0; t < 59; t++) w = stepWorld(w, () => FULL_THROTTLE);
     expect(isEpisodeOver(w)).toBe(false);
@@ -200,5 +200,54 @@ describe('progress in the world', () => {
     w = run(w, FULL_THROTTLE, 60);
     expect(w.cars[0]!.progress.progress).toBe(atCrash);
     expect(lapsOf(w.cars[0]!.progress, w.checkpoints)).toBe(0);
+  });
+});
+
+describe('stall rule (sim-time based, config-flagged)', () => {
+  it('a car idle for stallSeconds dies with cause "stall" at exactly the expected tick; progress unchanged', () => {
+    let w = createWorld(square, DEFAULT_SIM); // stallSeconds 3 → 180 ticks
+    for (let t = 1; t <= 179; t++) w = stepWorld(w, () => ({ steering: 0, throttle: 0 }));
+    expect(w.cars[0]!.alive).toBe(true);
+    w = stepWorld(w, () => ({ steering: 0, throttle: 0 }));
+    expect(w.cars[0]!.alive).toBe(false);
+    expect(w.cars[0]!.deathCause).toBe('stall');
+    expect(w.cars[0]!.crashedAtTick).toBe(180);
+    expect(w.cars[0]!.progress.progress).toBe(0);
+  });
+
+  it('moving resets the stall counter; a wall crash is reported as "wall"', () => {
+    let w = createWorld(square, DEFAULT_SIM);
+    for (let t = 0; t < 170; t++) w = stepWorld(w, () => ({ steering: 0, throttle: 0 }));
+    w = stepWorld(w, () => ({ steering: 0, throttle: 1 })); // moves (speed 0.2 m/s < 0.5 still counts as stalled)
+    for (let t = 0; t < 30; t++) w = stepWorld(w, () => ({ steering: 0, throttle: 1 }));
+    expect(w.cars[0]!.alive).toBe(true); // speed passed 0.5 m/s within a few ticks → counter reset
+    expect(w.cars[0]!.stallTicks).toBe(0);
+    for (let t = 0; t < 1200 && w.cars[0]!.alive; t++) w = stepWorld(w, () => FULL_THROTTLE);
+    expect(w.cars[0]!.deathCause).toBe('wall');
+  });
+
+  it('stallSeconds: null disables the rule (Drive mode)', () => {
+    const cfg = { ...DEFAULT_SIM, episode: { ...DEFAULT_SIM.episode, stallSeconds: null } };
+    let w = createWorld(square, cfg);
+    for (let t = 0; t < 600; t++) w = stepWorld(w, () => ({ steering: 0, throttle: 0 }));
+    expect(w.cars[0]!.alive).toBe(true);
+  });
+});
+
+describe('car-ghost invariant', () => {
+  it('two cars on the same start pose driving identically overlap the whole way and neither dies from the other', () => {
+    let w = createWorld(square, DEFAULT_SIM, 2);
+    for (let t = 0; t < 240; t++) w = stepWorld(w, () => FULL_THROTTLE);
+    expect(w.cars[0]!.state).toEqual(w.cars[1]!.state); // perfectly overlapping
+    expect(w.cars[0]!.alive && w.cars[1]!.alive).toBe(true);
+    // A third car parked on the start line is driven through by nobody-notices.
+    let w3 = createWorld(
+      square,
+      { ...DEFAULT_SIM, episode: { ...DEFAULT_SIM.episode, stallSeconds: null } },
+      2,
+    );
+    for (let t = 0; t < 120; t++)
+      w3 = stepWorld(w3, (i) => (i === 0 ? FULL_THROTTLE : { steering: 0, throttle: 0 }));
+    expect(w3.cars[0]!.alive && w3.cars[1]!.alive).toBe(true);
   });
 });
