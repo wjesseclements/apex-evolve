@@ -1,5 +1,6 @@
 /**
- * Deterministic elementary functions for the simulation core.
+ * Deterministic elementary functions for the simulation core:
+ * sin, cos, atan, atan2, exp, tanh, log, hypot2.
  *
  * WHY: JavaScript engines are free to implement Math.sin/cos/exp/… with
  * different algorithms, and in practice their results differ in the last bits
@@ -419,6 +420,75 @@ export function tanh(x: number): number {
     z = 1 - 2 / (t + 1);
   }
   return neg ? -z : z;
+}
+
+// ------------------------------------------------------------------- log
+
+const LN2_HI_LOG = 6.9314718036912381649e-1;
+const LN2_LO_LOG = 1.90821492927058770002e-10;
+const TWO54 = 1.8014398509481984e16;
+const LG1 = 6.66666666666673513e-1;
+const LG2 = 3.999999999940941908e-1;
+const LG3 = 2.857142874366239149e-1;
+const LG4 = 2.222219843214978396e-1;
+const LG5 = 1.818357216161805012e-1;
+const LG6 = 1.531383769920937332e-1;
+const LG7 = 1.479819860511658591e-1;
+
+/**
+ * Deterministic natural logarithm (fdlibm __ieee754_log). Exponent/mantissa
+ * extraction uses a DataView with explicit endianness, which is exactly
+ * specified — no engine-dependent behaviour is involved.
+ */
+export function log(x: number): number {
+  if (x !== x || x < 0) return NaN;
+  if (x === 0) return -Infinity;
+  if (x === Infinity) return Infinity;
+  let xv = x;
+  let k = 0;
+  view.setFloat64(0, xv);
+  let hx = view.getUint32(0);
+  if (hx < 0x00100000) {
+    // subnormal: scale up
+    k -= 54;
+    xv *= TWO54;
+    view.setFloat64(0, xv);
+    hx = view.getUint32(0);
+  }
+  k += (hx >>> 20) - 1023;
+  hx &= 0x000fffff;
+  const i = (hx + 0x95f64) & 0x100000;
+  // Normalize xv (or xv/2) into [√½, √2): replace the exponent, keep the mantissa.
+  view.setFloat64(0, xv);
+  view.setUint32(0, (hx | (i ^ 0x3ff00000)) >>> 0);
+  xv = view.getFloat64(0);
+  k += i >>> 20;
+  const f = xv - 1.0;
+  if ((0x000fffff & (2 + hx)) < 3) {
+    // −2^-20 ≤ f < 2^-20
+    if (f === 0) {
+      if (k === 0) return 0;
+      return k * LN2_HI_LOG + k * LN2_LO_LOG;
+    }
+    const R = f * f * (0.5 - 0.3333333333333333 * f); // fdlibm 0.33333333333333333, same double
+    if (k === 0) return f - R;
+    return k * LN2_HI_LOG - (R - k * LN2_LO_LOG - f);
+  }
+  const s = f / (2.0 + f);
+  const z = s * s;
+  const w = z * z;
+  const t1 = w * (LG2 + w * (LG4 + w * LG6));
+  const t2 = z * (LG1 + w * (LG3 + w * (LG5 + w * LG7)));
+  const R = t2 + t1;
+  const ii = hx - 0x6147a;
+  const jj = 0x6b851 - hx;
+  if ((ii | jj) > 0) {
+    const hfsq = 0.5 * f * f;
+    if (k === 0) return f - (hfsq - s * (hfsq + R));
+    return k * LN2_HI_LOG - (hfsq - (s * (hfsq + R) + k * LN2_LO_LOG) - f);
+  }
+  if (k === 0) return f - s * (f - R);
+  return k * LN2_HI_LOG - (s * (f - R) - k * LN2_LO_LOG - f);
 }
 
 /** Deterministic Euclidean length √(x²+y²) (Math.hypot is not specified bit-exactly). */
