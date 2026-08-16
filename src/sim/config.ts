@@ -99,3 +99,34 @@ export interface NetworkTopology {
 
 /** SPEC: 8 inputs (7 rays + speed) → 10 tanh hidden → 2 tanh outputs (steering, throttle). */
 export const DEFAULT_NN: NetworkTopology = { inputs: 8, hidden: 10, outputs: 2 };
+
+export interface GaConfig {
+  /** Number of genomes per generation (SPEC: 100). */
+  readonly populationSize: number;
+  /** Top-N genomes copied unchanged into the next generation (SPEC: 5). */
+  readonly eliteCount: number;
+  /** Tournament size for parent selection (SPEC: k = 4). */
+  readonly tournamentK: number;
+  /** Uniform per-gene crossover of two tournament parents when true; clone one parent when false. */
+  readonly crossoverEnabled: boolean;
+  /** Per-gene probability of mutation (SPEC: 0.1). */
+  readonly mutationRate: number;
+  /** Standard deviation of the Gaussian added to a mutated gene (SPEC: 0.2). */
+  readonly mutationSigma: number;
+  /** Standard deviation of the initial random genomes. */
+  readonly initSigma: number;
+}
+
+/**
+ * SPEC defaults. Crossover is OFF by default: mutation-only is the baseline
+ * and the Slice 3 toggle + same-seed comparison is the A/B experiment.
+ */
+export const DEFAULT_GA: GaConfig = {
+  populationSize: 100,
+  eliteCount: 5,
+  tournamentK: 4,
+  crossoverEnabled: false,
+  mutationRate: 0.1,
+  mutationSigma: 0.2,
+  initSigma: 1.0,
+};
