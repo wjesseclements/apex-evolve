@@ -15,8 +15,10 @@ import { worldToScreen, type Camera } from './camera.ts';
 export interface RenderOptions {
   /** Colour left/right edges differently and label them, draw the car's heading ray. */
   readonly debug: boolean;
-  /** Draw sensor rays (from the car centre to each ray's end point) on the driven car. */
+  /** Draw sensor rays (from the car centre to each ray's end point) on the focused car. */
   readonly showSensors: boolean;
+  /** Car drawn highlighted and on top (the driver's car, or the live leader). */
+  readonly focusIndex: number;
 }
 
 export const COLORS = {
@@ -29,6 +31,9 @@ export const COLORS = {
   carAlive: '#7CFC00',
   carNose: '#ffffff',
   carDead: '#8a2c2c',
+  carDim: 'rgba(124, 252, 0, 0.45)',
+  carDimDead: 'rgba(138, 44, 44, 0.45)',
+  carFocus: '#ffd166',
   centerline: '#3c404a',
   debugText: '#ffd166',
   rayNear: '#ff5c5c',
@@ -50,10 +55,19 @@ export function renderWorld(
   ctx.fillRect(0, 0, width, height);
   drawTrack(ctx, world.track, cam, opts);
   if (opts.debug) drawCheckpoints(ctx, world, cam);
-  for (const car of world.cars) drawCar(ctx, car, world, cam, opts);
-  if (opts.showSensors) {
-    const driven = world.cars[0];
-    if (driven) drawSensors(ctx, driven, world, cam);
+  const many = world.cars.length > 1;
+  // Dead cars first, then living ones, then the focused car on top.
+  for (let pass = 0; pass < 2; pass++) {
+    world.cars.forEach((car, i) => {
+      if (i === opts.focusIndex) return;
+      if ((pass === 0) !== !car.alive) return;
+      drawCar(ctx, car, world, cam, opts, many ? 'dim' : 'normal');
+    });
+  }
+  const focus = world.cars[opts.focusIndex];
+  if (focus) {
+    drawCar(ctx, focus, world, cam, opts, many ? 'focus' : 'normal');
+    if (opts.showSensors) drawSensors(ctx, focus, world, cam);
   }
 }
 
@@ -244,12 +258,15 @@ export function drawTrack(
   }
 }
 
+export type CarStyle = 'normal' | 'dim' | 'focus';
+
 export function drawCar(
   ctx: CanvasRenderingContext2D,
   car: Car,
   world: World,
   cam: Camera,
   opts: RenderOptions,
+  style: CarStyle = 'normal',
 ): void {
   const [fl, fr, rr, rl] = carCorners(car.state, world.cfg.physics);
   const pts = [fl, fr, rr, rl].map((p) => worldToScreen(cam, p));
@@ -263,19 +280,26 @@ export function drawCar(
   ctx.lineTo(srr.x, srr.y);
   ctx.lineTo(srl.x, srl.y);
   ctx.closePath();
-  ctx.fillStyle = car.alive ? COLORS.carAlive : COLORS.carDead;
+  if (style === 'dim') {
+    ctx.fillStyle = car.alive ? COLORS.carDim : COLORS.carDimDead;
+  } else if (style === 'focus') {
+    ctx.fillStyle = car.alive ? COLORS.carFocus : COLORS.carDead;
+  } else {
+    ctx.fillStyle = car.alive ? COLORS.carAlive : COLORS.carDead;
+  }
   ctx.fill();
-  ctx.lineWidth = 1;
-  ctx.strokeStyle = 'rgba(0,0,0,0.6)';
-  ctx.stroke();
-
-  // Nose marker: a line across the front so the heading is unambiguous.
-  ctx.beginPath();
-  ctx.moveTo(sfl.x, sfl.y);
-  ctx.lineTo(sfr.x, sfr.y);
-  ctx.lineWidth = 3;
-  ctx.strokeStyle = COLORS.carNose;
-  ctx.stroke();
+  if (style !== 'dim') {
+    ctx.lineWidth = 1;
+    ctx.strokeStyle = 'rgba(0,0,0,0.6)';
+    ctx.stroke();
+    // Nose marker: a line across the front so the heading is unambiguous.
+    ctx.beginPath();
+    ctx.moveTo(sfl.x, sfl.y);
+    ctx.lineTo(sfr.x, sfr.y);
+    ctx.lineWidth = 3;
+    ctx.strokeStyle = COLORS.carNose;
+    ctx.stroke();
+  }
 
   if (opts.debug) {
     // Heading ray from the centre, and the car's LEFT side marked, to make

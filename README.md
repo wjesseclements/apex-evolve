@@ -11,11 +11,32 @@ checkpoint-based progress metric that will be its fitness. No learning yet. See 
 
 ## Try it
 
-Arrow keys drive the car: <kbd>↑</kbd> throttle, <kbd>↓</kbd> brake,
+**Evolve** (default): watch the population learn. The yellow car is the current
+leader; dim red cars are dead. <kbd>R</kbd> restarts the run with the default
+seed. **Drive** (<kbd>M</kbd> or the toggle): race the algorithm yourself —
+arrow keys drive the car: <kbd>↑</kbd> throttle, <kbd>↓</kbd> brake,
 <kbd>←</kbd>/<kbd>→</kbd> steer. <kbd>R</kbd> resets after a crash,
 <kbd>S</kbd> toggles the sensor rays, <kbd>D</kbd> toggles the debug overlay
 (left edge red, right edge blue, heading arrow, car's left side dotted).
 Touching a track edge kills the car for the rest of the run.
+
+## How the learning works (Slice 2 baseline)
+
+- **Network:** 8 inputs (7 ray distances + speed) → 10 tanh → 2 tanh
+  (steering, throttle). Genome = 112 float32 weights/biases in one flat array.
+- **Fitness:** metres of centerline covered (checkpoints in order), so a car
+  that completes a lap in 15 s and keeps going scores ≈ 2 laps' worth in a
+  30 s episode. A lap-time bonus arrives in Slice 4.
+- **Generation:** all 100 cars run simultaneously as ghosts (no inter-car
+  collision) until the 30 s timer, or until every car has died — by touching
+  a wall or by the stall rule (below 0.5 m/s for 3 s of sim time).
+- **Selection:** top 5 elites copied unchanged; 95 offspring from tournament
+  selection (k = 4), optional uniform crossover (off by default; the Slice 3
+  toggle is the A/B experiment), then per-gene mutation with probability 0.1
+  and Gaussian σ = 0.2.
+- **Randomness:** one seeded PRNG drives everything, and the math is engine-
+  independent, so seed 42 gives the same generation-by-generation history in
+  every browser and in Node — `node scripts/evolve-headless.ts 30 42` prints it.
 
 ## Sensors
 
@@ -73,10 +94,14 @@ src/sim/     pure, headless simulation — no DOM, no timers, no Math.random, no
   track/       track JSON → mitered edges; localized nearest-segment + collision;
                checkpoints + progress metric
   sensors/     quad-walk raycast + the 8 NN inputs
-  engine/      World: fixed-timestep stepWorld over N cars, crash = frozen
+  nn/          8→10→2 tanh network, Float32Array genome, allocation-free forward
+  ga/          tournament / elitism / uniform crossover / Gaussian mutation
+  engine/      World (fixed-timestep stepWorld over N ghost cars, stall + wall deaths)
+               and Evolution (episodes → scoring → next generation, history)
 src/render/  Canvas 2D drawing; depends on sim/ only
-src/ui/      React chrome + the rAF/accumulator loop (the only place wall-clock time exists)
-scripts/     gen-track.ts (authoring helper that emits track JSON), CI purity grep
+src/ui/      React chrome + the rAF/accumulator loop (the only place wall-clock time exists);
+             Evolve / Drive sessions
+scripts/     gen-track.ts (track authoring), evolve-headless.ts (learning-curve table), CI purity grep
 docs/        CONVENTIONS.md — locked coordinate conventions
 ```
 

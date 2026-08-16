@@ -234,3 +234,49 @@ kbd {
 .inputs__val {
   color: var(--fg);
 }
+
+.app__header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1rem;
+  flex-wrap: wrap;
+}
+
+.mode {
+  display: inline-flex;
+  border: 1px solid #333844;
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+.mode__btn {
+  background: #171a21;
+  color: var(--muted);
+  border: 0;
+  padding: 0.45rem 0.9rem;
+  font: inherit;
+  cursor: pointer;
+}
+
+.mode__btn--on {
+  background: #2f3440;
+  color: var(--fg);
+  font-weight: 600;
+}
+
+.hud__grid--big {
+  margin-bottom: 0.9rem;
+}
+
+.hud__grid--big dd:nth-of-type(1),
+.hud__grid--big dd:nth-of-type(3) {
+  color: var(--accent);
+  font-weight: 600;
+}
+
+.side {
+  max-height: calc(100vh - 6rem);
+  overflow-y: auto;
+  padding-right: 2px;
+}
