@@ -176,3 +176,16 @@ export const DEFAULT_GA: GaConfig = {
   mutationSigma: 0.2,
   initSigma: 1.0,
 };
+
+/**
+ * The honesty benchmark (SPEC success criterion 1): on the training track with
+ * DEFAULT_SIM / DEFAULT_GA / DEFAULT_NN and this seed, the first lap must
+ * arrive at exactly this generation. The evolution test suite PINS this value;
+ * any physics or GA change that moves it fails the test, which forces every
+ * piece of UI copy that quotes it (the plateau hint) to be updated too — the
+ * copy is derived from here, never typed as a literal.
+ */
+export const BENCHMARK = {
+  seed: 42,
+  firstLapGeneration: 60,
+} as const;

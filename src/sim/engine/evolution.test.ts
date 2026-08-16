@@ -1,5 +1,12 @@
 import { describe, expect, it } from 'vitest';
-import { DEFAULT_GA, DEFAULT_NN, DEFAULT_SIM, NO_GRIP_SIM, type SimConfig } from '../config.ts';
+import {
+  BENCHMARK,
+  DEFAULT_GA,
+  DEFAULT_NN,
+  DEFAULT_SIM,
+  NO_GRIP_SIM,
+  type SimConfig,
+} from '../config.ts';
 import { SQUARE } from '../testing/fixtures.ts';
 import { buildTrack } from '../track/track.ts';
 import { TRAINING_TRACK } from '../track/tracks.ts';
@@ -208,7 +215,8 @@ describe('learning — deterministic so not flaky', () => {
     expect(g15.stallRate).toBeLessThan(g0.stallRate);
   }, 120000);
 
-  it('SPEC success criterion 1: on the training track, default config and seed, at least one car completes a lap within 100 generations', () => {
+  it('SPEC success criterion 1: on the training track, default config and BENCHMARK.seed, the first lap arrives at exactly BENCHMARK.firstLapGeneration (< 100)', () => {
+    expect(CFG.seed).toBe(BENCHMARK.seed);
     const evo = createEvolution(TRAINING_TRACK, CFG);
     let firstLapGen = -1;
     while (evo.generation < 100) {
@@ -219,7 +227,10 @@ describe('learning — deterministic so not flaky', () => {
         break;
       }
     }
-    expect(firstLapGen).toBeGreaterThanOrEqual(0);
+    // Pinned on purpose: UI copy quotes BENCHMARK.firstLapGeneration. If a
+    // physics/GA change moves the first lap, update BENCHMARK (and the docs) —
+    // never let the copy drift from the truth.
+    expect(firstLapGen).toBe(BENCHMARK.firstLapGeneration);
     expect(firstLapGen).toBeLessThan(100);
   }, 300000);
 });

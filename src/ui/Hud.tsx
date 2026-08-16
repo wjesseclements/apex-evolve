@@ -1,3 +1,4 @@
+import { BENCHMARK } from '../sim/config.ts';
 import { fitnessOf } from '../sim/engine/evolution.ts';
 import { bestLapSeconds, isEpisodeOver } from '../sim/engine/world.ts';
 import { FitnessChart } from './FitnessChart.tsx';
@@ -24,6 +25,8 @@ function headingDeg(r: number): number {
 }
 
 const INPUT_LABELS = ['L90', 'L60', 'L30', 'F', 'R30', 'R60', 'R90', 'v'];
+/** Show the plateau hint once a run has gone this many generations without a lap. */
+const PLATEAU_HINT_FROM = 15;
 
 export function Hud({
   hud,
@@ -79,6 +82,17 @@ export function Hud({
 
   return (
     <aside className="hud" aria-label="Stats">
+      {evo && world && evo.generation >= PLATEAU_HINT_FROM && evo.bestLapEver === null && (
+        <p className="hint" role="status">
+          <strong>Nothing lapping yet?</strong> That is normal here: the population is failing the
+          left-hand kink at speed. On the benchmark seed {BENCHMARK.seed} the breakthrough comes at
+          generation {BENCHMARK.firstLapGeneration}
+          {evo.cfg.seed === BENCHMARK.seed && !evo.modified ? ' — this run' : ''}. Try <kbd>4</kbd>{' '}
+          (max speed), or <a href="?seed=43">seed 43</a> /{' '}
+          <a href={`?seed=${String(evo.cfg.seed)}&crossover=1`}>crossover on</a> for a faster
+          learner.
+        </p>
+      )}
       {evo && world && (
         <>
           <h2 className="hud__title">Evolution</h2>

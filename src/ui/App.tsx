@@ -3,6 +3,7 @@ import { DEFAULT_GA, DEFAULT_NN, DEFAULT_SIM } from '../sim/config.ts';
 import { NEUTRAL_CONTROLS, type CarControls } from '../sim/physics/car.ts';
 import { injectGenome } from '../sim/engine/evolution.ts';
 import { TRACKS } from '../sim/track/tracks.ts';
+import { Explainer } from './Explainer.tsx';
 import { Hud } from './Hud.tsx';
 import { RunControls } from './RunControls.tsx';
 import { createDriveSession, createEvolveSession } from './session.ts';
@@ -19,6 +20,8 @@ export function App() {
   const mode = useUiStore((s) => s.mode);
   const speed = useUiStore((s) => s.speed);
   const paused = useUiStore((s) => s.paused);
+  const toast = useUiStore((s) => s.toast);
+  const setToast = useUiStore((s) => s.setToast);
   const showSensors = useUiStore((s) => s.showSensors);
   const debug = useUiStore((s) => s.debug);
   const { setMode, toggleMode, setSpeed, togglePaused, toggleSensors, toggleDebug } =
@@ -83,8 +86,8 @@ export function App() {
           <h1>apex-evolve</h1>
           <p>
             {mode === 'evolve'
-              ? '100 cars, each steered by a tiny neural network, learn the track by evolution — no gradients, just selection and mutation.'
-              : 'Drive mode — race the algorithm yourself with the arrow keys.'}
+              ? '100 cars, each steered by a tiny neural network, learn the track by evolution — no gradients, just selection and mutation. Yellow is the current leader.'
+              : 'Drive mode — race the algorithm yourself with the arrow keys (brake for the corners!).'}
           </p>
         </div>
         <div className="toolbar">
@@ -136,6 +139,19 @@ export function App() {
       </header>
       <div className="app__body">
         <div className="canvas-wrap">
+          {toast && (
+            <div className="toast" role="status">
+              <span>{toast}</span>
+              <button
+                type="button"
+                className="toast__close"
+                onClick={() => setToast(null)}
+                aria-label="Dismiss"
+              >
+                ×
+              </button>
+            </div>
+          )}
           <canvas
             ref={canvasRef}
             className="sim-canvas"
@@ -147,6 +163,7 @@ export function App() {
           />
         </div>
         <div className="side">
+          {mode === 'evolve' && <Explainer />}
           <Hud
             hud={sim.hud}
             debug={debug}

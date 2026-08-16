@@ -225,6 +225,7 @@ export function RunControls({
           onChange={(e) => {
             setCrossoverEnabled(e.target.checked);
             applyKnobs(mutationRate, e.target.checked);
+            syncUrl(seed, trackId, e.target.checked);
           }}
         />
         <span className="inspector__val">{crossoverEnabled ? 'on' : 'off'}</span>
