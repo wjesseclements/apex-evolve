@@ -39,7 +39,8 @@ export function App() {
     [mode],
   );
   const sim = useSimLoop(canvasRef, createSession, controlsRef);
-  const { reset } = sim;
+  const { reset, clickAt } = sim;
+  const setSelection = useUiStore((s) => s.setSelection);
   const onKey = useCallback(
     (key: string) => {
       if (key === 'r') reset();
@@ -47,9 +48,10 @@ export function App() {
       else if (key === 's') toggleSensors();
       else if (key === 'm') toggleMode();
       else if (key === ' ') togglePaused();
+      else if (key === 'escape') setSelection(null);
       else if (key in SPEED_KEYS) setSpeed(SPEED_KEYS[key] ?? 1);
     },
-    [reset, toggleDebug, toggleSensors, toggleMode, togglePaused, setSpeed],
+    [reset, toggleDebug, toggleSensors, toggleMode, togglePaused, setSpeed, setSelection],
   );
   useKeyboardControls(controlsRef, onKey);
 
@@ -113,7 +115,15 @@ export function App() {
       </header>
       <div className="app__body">
         <div className="canvas-wrap">
-          <canvas ref={canvasRef} className="sim-canvas" aria-label="Simulation" />
+          <canvas
+            ref={canvasRef}
+            className="sim-canvas"
+            aria-label="Simulation — click a car to inspect it"
+            onClick={(e) => {
+              const r = e.currentTarget.getBoundingClientRect();
+              clickAt(e.clientX - r.left, e.clientY - r.top);
+            }}
+          />
         </div>
         <div className="side">
           <Hud

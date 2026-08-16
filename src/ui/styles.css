@@ -309,3 +309,106 @@ kbd {
 .chart canvas {
   display: block;
 }
+
+.inspector {
+  margin-bottom: 0.9rem;
+}
+
+.inspector__row {
+  display: grid;
+  grid-template-columns: 4.5rem 1fr 3.2rem;
+  align-items: center;
+  gap: 0.5rem;
+  margin-bottom: 0.6rem;
+  font-size: 0.85rem;
+}
+
+.inspector__label {
+  color: var(--muted);
+  font-size: 0.75rem;
+}
+
+.inspector__val {
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+  font-size: 0.8rem;
+}
+
+.steer {
+  position: relative;
+  height: 14px;
+  background: #262a33;
+  border-radius: 4px;
+  overflow: hidden;
+}
+
+.steer__centre {
+  position: absolute;
+  left: 50%;
+  top: 0;
+  bottom: 0;
+  width: 2px;
+  margin-left: -1px;
+  background: #4b5160;
+}
+
+.steer__fill {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  background: #ffd166;
+  transition: width 60ms linear;
+}
+
+.inspector__bars {
+  display: grid;
+  grid-template-columns: repeat(3, 3.2rem) 1fr;
+  gap: 0.6rem;
+  align-items: end;
+}
+
+.vbar {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.15rem;
+}
+
+.vbar__track {
+  width: 100%;
+  height: 56px;
+  background: #262a33;
+  border-radius: 4px;
+  display: flex;
+  align-items: flex-end;
+  overflow: hidden;
+}
+
+.vbar__fill {
+  width: 100%;
+  transition: height 60ms linear;
+}
+
+.vbar__fill--throttle {
+  background: var(--accent);
+}
+
+.vbar__fill--brake {
+  background: var(--danger);
+}
+
+.vbar__fill--speed {
+  background: var(--right);
+}
+
+.inspector__stats {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+  font-size: 0.85rem;
+  padding-bottom: 1.4rem;
+}
+
+.inspector__stats span {
+  display: block;
+}

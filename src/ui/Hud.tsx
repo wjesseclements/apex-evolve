@@ -1,6 +1,7 @@
 import { fitnessOf } from '../sim/engine/evolution.ts';
 import { bestLapSeconds, isEpisodeOver } from '../sim/engine/world.ts';
 import { FitnessChart } from './FitnessChart.tsx';
+import { Inspector } from './Inspector.tsx';
 import { lapsOf, nextCheckpointIndex } from '../sim/track/progress.ts';
 import type { Speed } from './tickPlanner.ts';
 import type { HudSnapshot } from './useSimLoop.ts';
@@ -126,7 +127,21 @@ export function Hud({
           <FitnessChart history={evo.history} />
         </>
       )}
-      <h2 className="hud__title">{evo ? 'Leader telemetry' : 'Telemetry'}</h2>
+      {car && world && (
+        <Inspector
+          car={car}
+          vMax={world.cfg.physics.vMax}
+          fitness={fitnessOf(car)}
+          title={
+            evo
+              ? hud?.selected
+                ? `Inspector — car #${hud.focusIndex} (selected · Esc to deselect)`
+                : `Inspector — leader (car #${hud?.focusIndex ?? 0}) · click a car to select`
+              : 'Inspector — your car'
+          }
+        />
+      )}
+      <h2 className="hud__title">Telemetry</h2>
       <dl className="hud__grid">
         <dt>Status</dt>
         <dd className={statusClass}>{status}</dd>

@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState, type RefObject } from 'react';
-import { fitCamera } from '../render/camera.ts';
+import { fitCamera, type Camera } from '../render/camera.ts';
+import { hitTestCar, resolveSelection } from '../render/hitTest.ts';
 import { renderWorld, type RenderOptions } from '../render/draw.ts';
 import type { Evolution } from '../sim/engine/evolution.ts';
 import type { World } from '../sim/engine/world.ts';
@@ -15,14 +16,20 @@ const MAX_FRAME_DT = 0.25;
 export const MAX_SPEED_BUDGET_MS = 12;
 /** How often the React HUD snapshot is refreshed. */
 const HUD_INTERVAL_MS = 80;
+/** Click tolerance for selecting a car, CSS px (cars are ~20 px long at the default zoom). */
+export const CLICK_RADIUS_PX = 14;
 
 export interface HudSnapshot {
   readonly mode: SessionMode;
   readonly world: World;
   /** The evolution run when in Evolve mode (a live, mutable object — read-only for display). */
   readonly evolution: Evolution | null;
-  /** Index of the highlighted car. */
+  /** Index of the highlighted car (selected car if any, else leader/driver). */
   readonly focusIndex: number;
+  /** True when focusIndex comes from a click selection. */
+  readonly selected: boolean;
+  /** Generation of the current world (0 in Drive mode). */
+  readonly generation: number;
   /** Measured render frames per second (smoothed). */
   readonly fps: number;
   /** Smoothed milliseconds of sim + render work per frame. */
@@ -34,6 +41,8 @@ export interface HudSnapshot {
 export interface SimLoopApi {
   readonly hud: HudSnapshot | null;
   readonly reset: () => void;
+  /** Handle a click on the canvas at CSS-pixel coordinates: select a living car or deselect. */
+  readonly clickAt: (x: number, y: number) => void;
 }
 
 /**
@@ -51,6 +60,7 @@ export function useSimLoop(
   controlsRef: RefObject<CarControls>,
 ): SimLoopApi {
   const sessionRef = useRef<Session | null>(null);
+  const cameraRef = useRef<Camera | null>(null);
   const [hud, setHud] = useState<HudSnapshot | null>(null);
 
   useEffect(() => {
@@ -119,8 +129,13 @@ export function useSimLoop(
       if (frameDt > 0) tps = tps * 0.9 + (ticks / frameDt) * 0.1;
 
       const world = session.world();
-      const focusIndex = session.focusIndex();
+      const generation = session.generation();
+      // Selection survives only while its car is alive and the generation is unchanged.
+      const sel = resolveSelection(ui.selection, world, generation);
+      if (sel !== ui.selection) useUiStore.getState().setSelection(sel);
+      const focusIndex = sel ? sel.index : session.focusIndex();
       const cam = fitCamera(world.track.bounds, cssW, cssH);
+      cameraRef.current = cam;
       const opts: RenderOptions = {
         debug: ui.debug,
         showSensors: ui.showSensors,
@@ -136,6 +151,8 @@ export function useSimLoop(
           world,
           evolution: session.evolution(),
           focusIndex,
+          selected: sel !== null,
+          generation,
           fps,
           frameMs,
           ticksPerSecond: tps,
@@ -154,7 +171,17 @@ export function useSimLoop(
 
   const reset = useCallback(() => {
     sessionRef.current?.reset();
+    useUiStore.getState().setSelection(null);
+  }, []);
+  const clickAt = useCallback((x: number, y: number) => {
+    const session = sessionRef.current;
+    const cam = cameraRef.current;
+    if (!session || !cam || session.mode !== 'evolve') return;
+    const hit = hitTestCar(session.world(), cam, { x, y }, CLICK_RADIUS_PX);
+    useUiStore
+      .getState()
+      .setSelection(hit === null ? null : { index: hit, generation: session.generation() });
   }, []);
 
-  return { hud, reset };
+  return { hud, reset, clickAt };
 }

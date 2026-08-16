@@ -4,6 +4,7 @@
  * once per frame and never subscribes per tick.
  */
 import { create } from 'zustand';
+import type { Selection } from '../render/hitTest.ts';
 import type { Speed } from './tickPlanner.ts';
 
 export type Mode = 'evolve' | 'drive';
@@ -14,6 +15,9 @@ export interface UiState {
   readonly paused: boolean;
   readonly showSensors: boolean;
   readonly debug: boolean;
+  /** Car selected in the inspector (Evolve mode), or null → the live leader is shown. */
+  readonly selection: Selection | null;
+  setSelection: (selection: Selection | null) => void;
   setMode: (mode: Mode) => void;
   toggleMode: () => void;
   setSpeed: (speed: Speed) => void;
@@ -29,8 +33,11 @@ export const useUiStore = create<UiState>((set) => ({
   paused: false,
   showSensors: true,
   debug: false,
-  setMode: (mode) => set({ mode }),
-  toggleMode: () => set((s) => ({ mode: s.mode === 'evolve' ? 'drive' : 'evolve' })),
+  selection: null,
+  setSelection: (selection) => set({ selection }),
+  setMode: (mode) => set({ mode, selection: null }),
+  toggleMode: () =>
+    set((s) => ({ mode: s.mode === 'evolve' ? 'drive' : 'evolve', selection: null })),
   setSpeed: (speed) => set({ speed }),
   setPaused: (paused) => set({ paused }),
   togglePaused: () => set((s) => ({ paused: !s.paused })),
