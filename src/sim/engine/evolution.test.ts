@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { DEFAULT_GA, DEFAULT_NN, DEFAULT_SIM, type SimConfig } from '../config.ts';
+import { DEFAULT_GA, DEFAULT_NN, DEFAULT_SIM, NO_GRIP_SIM, type SimConfig } from '../config.ts';
 import { SQUARE } from '../testing/fixtures.ts';
 import { buildTrack } from '../track/track.ts';
 import { TRAINING_TRACK } from '../track/tracks.ts';
@@ -16,6 +16,8 @@ import {
 } from './evolution.ts';
 
 const CFG: EvolutionConfig = { sim: DEFAULT_SIM, ga: DEFAULT_GA, nn: DEFAULT_NN, seed: 42 };
+/** The Slice 2/3 model (no grip limit) — its golden pin is kept verbatim. */
+const NO_GRIP_CFG: EvolutionConfig = { ...CFG, sim: NO_GRIP_SIM };
 /** Shorter episodes keep the reproducibility runs cheap. */
 const SHORT_SIM: SimConfig = { ...DEFAULT_SIM, episode: { ...DEFAULT_SIM.episode, seconds: 8 } };
 const SHORT: EvolutionConfig = { ...CFG, sim: SHORT_SIM };
@@ -182,9 +184,9 @@ describe('determinism across speed settings (Slice 3 checklist)', () => {
   }, 120000);
 });
 
-describe('learning (default config, seed 42, training track) — deterministic so not flaky', () => {
-  it('mean progress at gen 15 far exceeds gen 0, and at least one lap is completed by gen 15', () => {
-    const evo = createEvolution(TRAINING_TRACK, CFG);
+describe('learning — deterministic so not flaky', () => {
+  it('NO-GRIP model, seed 42: gen-15 mean ≫ gen-0 mean and laps completed by gen 15', () => {
+    const evo = createEvolution(TRAINING_TRACK, NO_GRIP_CFG);
     runGenerations(evo, 16);
     const g0 = evo.history[0]!;
     const g15 = evo.history[15]!;
@@ -193,20 +195,50 @@ describe('learning (default config, seed 42, training track) — deterministic s
     expect(evo.history.some((r) => r.lapCompletions > 0)).toBe(true);
     expect(g15.stallRate).toBeLessThan(g0.stallRate);
   }, 120000);
+
+  it('DEFAULT config (grip limit on), seed 42: gen-15 mean ≫ gen-0 mean', () => {
+    const evo = createEvolution(TRAINING_TRACK, CFG);
+    runGenerations(evo, 16);
+    const g0 = evo.history[0]!;
+    const g15 = evo.history[15]!;
+    expect(g15.mean).toBeGreaterThan(g0.mean * 5);
+    expect(g15.stallRate).toBeLessThan(g0.stallRate);
+  }, 120000);
+
+  it('SPEC success criterion 1: on the training track, default config and seed, at least one car completes a lap within 100 generations', () => {
+    const evo = createEvolution(TRAINING_TRACK, CFG);
+    let firstLapGen = -1;
+    while (evo.generation < 100) {
+      runGenerations(evo, 1);
+      const r = evo.history[evo.history.length - 1]!;
+      if (r.lapCompletions > 0) {
+        firstLapGen = r.generation;
+        break;
+      }
+    }
+    expect(firstLapGen).toBeGreaterThanOrEqual(0);
+    expect(firstLapGen).toBeLessThan(100);
+  }, 300000);
 });
 
-describe('golden generation record — BIT-EXACT across engines', () => {
-  it('seed 42, default config, generation 3 record', () => {
-    const evo = createEvolution(TRAINING_TRACK, CFG);
+describe('golden generation records — BIT-EXACT across engines', () => {
+  it('seed 42, NO-GRIP config (Slice 2 pin, unchanged), generation 3 record', () => {
+    const evo = createEvolution(TRAINING_TRACK, NO_GRIP_CFG);
     runGenerations(evo, 4);
     expect(evo.history[3]).toEqual(GOLDEN_GEN3);
+  }, 60000);
+
+  it('seed 42, DEFAULT config (grip limit on), generation 3 record', () => {
+    const evo = createEvolution(TRAINING_TRACK, CFG);
+    runGenerations(evo, 4);
+    expect(evo.history[3]).toEqual(GOLDEN_GEN3_GRIP);
   }, 60000);
 });
 
 describe('lap times', () => {
   it('records bestLapTime per generation and bestLapEver once cars lap; null before', () => {
-    const evo = createEvolution(TRAINING_TRACK, CFG);
-    runGenerations(evo, 9); // gens 0–8: first laps at gen 7 for seed 42
+    const evo = createEvolution(TRAINING_TRACK, NO_GRIP_CFG);
+    runGenerations(evo, 9); // gens 0–8: first laps at gen 7 for seed 42 without grip
     expect(evo.history[0]!.bestLapTime).toBeNull();
     const first = evo.history.findIndex((r) => r.lapCompletions > 0);
     expect(first).toBeGreaterThan(0);
@@ -234,6 +266,19 @@ describe('square track smoke', () => {
     expect(evo.population).toHaveLength(10);
   });
 });
+
+const GOLDEN_GEN3_GRIP: GenerationRecord = {
+  generation: 3,
+  best: 132.41187021980315,
+  mean: 77.67176559080363,
+  median: 96.61369458276306,
+  crashRate: 0.98,
+  stallRate: 0.02,
+  lapCompletions: 0,
+  bestIndex: 85,
+  ticks: 389,
+  bestLapTime: null,
+};
 
 const GOLDEN_GEN3: GenerationRecord = {
   generation: 3,

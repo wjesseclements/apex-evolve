@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { DEFAULT_PHYSICS, DEFAULT_SIM } from '../config.ts';
+import { DEFAULT_PHYSICS, DEFAULT_SIM as GRIP_SIM, NO_GRIP_SIM as DEFAULT_SIM } from '../config.ts';
 import type { CarControls } from '../physics/car.ts';
 import { SQUARE } from '../testing/fixtures.ts';
 import { buildTrack } from '../track/track.ts';
@@ -250,6 +250,13 @@ describe('car-ghost invariant', () => {
     for (let t = 0; t < 120; t++)
       w3 = stepWorld(w3, (i) => (i === 0 ? FULL_THROTTLE : { steering: 0, throttle: 0 }));
     expect(w3.cars[0]!.alive && w3.cars[1]!.alive).toBe(true);
+  });
+});
+
+describe('grip limit in the world (default config)', () => {
+  it('DEFAULT_SIM has the grip limit on; NO_GRIP_SIM is the pinned Slice 0–3 model', () => {
+    expect(GRIP_SIM.physics.lateralAccelMax).toBe(20);
+    expect(DEFAULT_SIM.physics.lateralAccelMax).toBeNull();
   });
 });
 

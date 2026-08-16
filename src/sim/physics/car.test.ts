@@ -21,6 +21,7 @@ const HAND: PhysicsConfig = {
   steerRate: 2,
   carLength: 4,
   carWidth: 2,
+  lateralAccelMax: null,
 };
 
 /**
@@ -36,6 +37,7 @@ const GOLDEN_CFG: PhysicsConfig = {
   steerRate: 3.0,
   carLength: 4.0,
   carWidth: 1.8,
+  lateralAccelMax: null,
 };
 
 /** Pinned final state of the determinism trajectory under GOLDEN_CFG. */
@@ -171,6 +173,85 @@ describe('stepCar — invariants', () => {
       expect((maxX - minX) / 2).toBeCloseTo(radius, 1);
       expect((maxY - minY) / 2).toBeCloseTo(radius, 1);
     }
+  });
+});
+
+describe('stepCar — grip limit (lateral acceleration cap)', () => {
+  // HAND with A = 3 m/s²: vMax 10, steerRate 2 ⇒ commanded ω = 2·(v/10); cap ω ≤ 3/v.
+  const GRIP: PhysicsConfig = { ...HAND, lateralAccelMax: 3 };
+
+  it('at speed the yaw rate is clamped to A/v: v = 10, full lock ⇒ ω = 0.3 (not 2), heading += 0.15 in dt 0.5', () => {
+    const s = stepCar({ x: 0, y: 0, heading: 0, speed: 10 }, { steering: 1, throttle: 0 }, GRIP);
+    expect(s.heading).toBeCloseTo(0.3 * 0.5, 12);
+    const noGrip = stepCar(
+      { x: 0, y: 0, heading: 0, speed: 10 },
+      { steering: 1, throttle: 0 },
+      HAND,
+    );
+    expect(noGrip.heading).toBeCloseTo(2 * 0.5, 12);
+  });
+
+  it('below the threshold the cap is inactive: v = 1 ⇒ commanded ω = 0.2 < 3 ⇒ identical to the no-grip model', () => {
+    const a = stepCar({ x: 0, y: 0, heading: 0, speed: 1 }, { steering: 1, throttle: 0 }, GRIP);
+    const b = stepCar({ x: 0, y: 0, heading: 0, speed: 1 }, { steering: 1, throttle: 0 }, HAND);
+    expect(a).toEqual(b);
+  });
+
+  it('threshold speed is where steerRate·v/vMax = A/v, i.e. v = sqrt(A·vMax/steerRate) = sqrt(15) ≈ 3.87 m/s', () => {
+    const vt = Math.sqrt((GRIP.lateralAccelMax! * GRIP.vMax) / GRIP.steerRate);
+    const below = stepCar(
+      { x: 0, y: 0, heading: 0, speed: vt * 0.99 },
+      { steering: 1, throttle: 0 },
+      GRIP,
+    );
+    const belowRef = stepCar(
+      { x: 0, y: 0, heading: 0, speed: vt * 0.99 },
+      { steering: 1, throttle: 0 },
+      HAND,
+    );
+    expect(below.heading).toBe(belowRef.heading);
+    const above = stepCar(
+      { x: 0, y: 0, heading: 0, speed: vt * 1.01 },
+      { steering: 1, throttle: 0 },
+      GRIP,
+    );
+    const aboveRef = stepCar(
+      { x: 0, y: 0, heading: 0, speed: vt * 1.01 },
+      { steering: 1, throttle: 0 },
+      HAND,
+    );
+    expect(above.heading).toBeLessThan(aboveRef.heading);
+  });
+
+  it('turn radius at speed is v²/A (understeer): v = 6, A = 3 ⇒ R = 12 m (no-grip model would give vMax/steerRate = 5 m)', () => {
+    const cfg: PhysicsConfig = { ...GRIP, dt: 1 / 600 };
+    let s: CarState = { x: 0, y: 0, heading: 0, speed: 6 };
+    let minX = Infinity;
+    let maxX = -Infinity;
+    const R = 12;
+    const ticks = Math.ceil((2 * Math.PI * R) / 6 / cfg.dt);
+    for (let i = 0; i < ticks; i++) {
+      s = stepCar(s, { steering: 1, throttle: 0 }, cfg);
+      minX = Math.min(minX, s.x);
+      maxX = Math.max(maxX, s.x);
+    }
+    expect((maxX - minX) / 2).toBeCloseTo(R, 1);
+  });
+
+  it('is exactly symmetric left/right and partial steering under the cap is unaffected', () => {
+    const l = stepCar({ x: 0, y: 0, heading: 0, speed: 10 }, { steering: -1, throttle: 0 }, GRIP);
+    const r = stepCar({ x: 0, y: 0, heading: 0, speed: 10 }, { steering: 1, throttle: 0 }, GRIP);
+    expect(Object.is(l.heading, -r.heading)).toBe(true);
+    // steering 0.1 at v=10: commanded 0.2 < cap 0.3 ⇒ same as no-grip
+    const p = stepCar({ x: 0, y: 0, heading: 0, speed: 10 }, { steering: 0.1, throttle: 0 }, GRIP);
+    const q = stepCar({ x: 0, y: 0, heading: 0, speed: 10 }, { steering: 0.1, throttle: 0 }, HAND);
+    expect(p).toEqual(q);
+  });
+
+  it('DEFAULT_PHYSICS: A = 20 ⇒ 30 m/s needs R ≥ 45 m and R = 18 allows √360 ≈ 19 m/s', () => {
+    expect(DEFAULT_PHYSICS.lateralAccelMax).toBe(20);
+    expect((30 * 30) / 20).toBe(45);
+    expect(Math.sqrt(20 * 18)).toBeCloseTo(18.97, 2);
   });
 });
 

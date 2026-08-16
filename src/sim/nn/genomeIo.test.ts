@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { DEFAULT_GA, DEFAULT_NN, DEFAULT_SIM } from '../config.ts';
+import { DEFAULT_GA, DEFAULT_NN, DEFAULT_SIM, NO_GRIP_SIM } from '../config.ts';
 import {
   createEvolution,
   injectGenome,
@@ -13,11 +13,12 @@ import { TRAINING_TRACK } from '../track/tracks.ts';
 import { buildGenomeExport, parseGenomeExport, type GenomeExport } from './genomeIo.ts';
 import { createScratch, forward, randomGenome, type Genome } from './network.ts';
 
-const CFG = { sim: DEFAULT_SIM, ga: DEFAULT_GA, nn: DEFAULT_NN, seed: 42 };
+/** Replay equivalence is about determinism, not dynamics: use the fast-learning no-grip model. */
+const CFG = { sim: NO_GRIP_SIM, ga: DEFAULT_GA, nn: DEFAULT_NN, seed: 42 };
 
 /** Drive one car with `g` alone for a whole episode; return its per-tick states. */
 function soloTrajectory(g: Genome): { x: number; y: number; heading: number; speed: number }[] {
-  let w: World = createWorld(TRAINING_TRACK, DEFAULT_SIM, 1);
+  let w: World = createWorld(TRAINING_TRACK, NO_GRIP_SIM, 1);
   const out = new Float64Array(2);
   const scratch = createScratch(DEFAULT_NN);
   const traj = [];
