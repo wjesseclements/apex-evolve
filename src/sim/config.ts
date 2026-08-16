@@ -20,6 +20,14 @@ export interface PhysicsConfig {
   readonly carLength: number;
   /** Car body width (across heading), meters. */
   readonly carWidth: number;
+  /**
+   * Grip limit (SPEC "optional refinement"): cap on lateral acceleration
+   * v·ω, m/s². The commanded yaw rate is clamped to |ω| ≤ lateralAccelMax / v,
+   * so at speed the car understeers — turn radius can't drop below v²/A —
+   * unless it slows down. This is what makes braking and racing lines matter.
+   * `null` disables the cap (the Slice 0–3 kinematic model).
+   */
+  readonly lateralAccelMax: number | null;
 }
 
 /**
@@ -37,7 +45,15 @@ export const DEFAULT_PHYSICS: PhysicsConfig = {
   steerRate: 2.5,
   carLength: 4.0,
   carWidth: 1.8,
+  // Corner speed for radius R is sqrt(A·R): 20 m/s² gives 19 m/s at R=18 and
+  // 24.5 m/s at R=30, while 30 m/s needs R ≥ 45 m — flat-out cornering is out
+  // on every corner of both tracks. Tuned on seed 42 (see PR #19): 12–18 left
+  // the default seed stuck for 100 generations, 22–25 likewise; 20 laps.
+  lateralAccelMax: 20,
 };
+
+/** The Slice 0–3 model without the grip limit; kept for tests and comparisons. */
+export const NO_GRIP_PHYSICS: PhysicsConfig = { ...DEFAULT_PHYSICS, lateralAccelMax: null };
 
 export interface SensorConfig {
   /**
@@ -102,6 +118,9 @@ export const DEFAULT_SIM: SimConfig = {
   progress: DEFAULT_PROGRESS,
   episode: DEFAULT_EPISODE,
 };
+
+/** DEFAULT_SIM with the grip limit off (the Slice 0–3 model). Guarded by its own golden pins. */
+export const NO_GRIP_SIM: SimConfig = { ...DEFAULT_SIM, physics: NO_GRIP_PHYSICS };
 
 export interface NetworkTopology {
   readonly inputs: number;

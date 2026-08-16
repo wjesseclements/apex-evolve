@@ -12,7 +12,10 @@
  * Per-tick update order (exactly as SPEC):
  *   1. v += throttle · accel · dt; clamp to [0, vMax]
  *   2. v *= (1 − drag · dt)
- *   3. θ += steering · steerRate · (v / vMax) · dt   (no turning at standstill)
+ *   3. ω = steering · steerRate · (v / vMax)         (no turning at standstill)
+ *      grip limit (cfg.lateralAccelMax = A, optional): |ω| ≤ A / v, i.e. the
+ *      lateral acceleration v·ω is capped — the car understeers at speed and
+ *      its turn radius can't drop below v²/A. θ += ω · dt
  *   4. position += (cos θ, sin θ) · v · dt
  *
  * `stepCar` is a pure function of (state, controls, config): same inputs ⇒
@@ -73,8 +76,16 @@ export function stepCar(state: CarState, controls: CarControls, cfg: PhysicsConf
   // 2. drag
   speed *= 1 - cfg.drag * dt;
 
-  // 3. yaw — scaled by speed so the car cannot turn at standstill.
-  const heading = state.heading + steering * cfg.steerRate * (speed / cfg.vMax) * dt;
+  // 3. yaw — scaled by speed so the car cannot turn at standstill; the grip
+  //    limit caps lateral acceleration v·ω (understeer at speed).
+  let omega = steering * cfg.steerRate * (speed / cfg.vMax);
+  const A = cfg.lateralAccelMax;
+  if (A !== null && speed > 0) {
+    const maxOmega = A / speed;
+    if (omega > maxOmega) omega = maxOmega;
+    else if (omega < -maxOmega) omega = -maxOmega;
+  }
+  const heading = state.heading + omega * dt;
 
   // 4. translate along the (new) heading.
   const x = state.x + cos(heading) * speed * dt;
