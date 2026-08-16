@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { expectVec2 } from '../testing/expectVec2.ts';
 import { SQUARE, distToLine } from '../testing/fixtures.ts';
 import { at, buildTrack, parseTrackData, wrapIndex, type Track } from './track.ts';
-import { TRAINING_TRACK } from './tracks.ts';
+import { HELDOUT_TRACK, TRACKS, TRAINING_TRACK } from './tracks.ts';
 
 /** Distance from p to the infinite line of centerline segment i. */
 function distToSegmentLine(t: Track, i: number, p: { x: number; y: number }): number {
@@ -198,6 +198,49 @@ describe('TRAINING_TRACK (shipped JSON)', () => {
         return s + Math.hypot(q.x - p.x, q.y - p.y);
       }, 0);
     expect(perimeter(t.leftEdge)).toBeGreaterThan(perimeter(t.rightEdge));
+  });
+
+  it('segments are short enough for the localized nearest-segment search (≤ 6 m)', () => {
+    for (const len of t.segmentLengths) expect(len).toBeLessThanOrEqual(6);
+  });
+});
+
+describe('HELDOUT_TRACK (shipped JSON)', () => {
+  const t = HELDOUT_TRACK;
+
+  it('is a 12 m wide closed loop of ~509 m starting at the origin heading east, registered as "heldout"', () => {
+    expect(t.name).toBe('heldout');
+    expect(TRACKS.heldout).toBe(t);
+    expect(t.width).toBe(12);
+    expect(t.centerline.length).toBeGreaterThan(50);
+    expect(t.totalLength).toBeGreaterThan(480);
+    expect(t.totalLength).toBeLessThan(540);
+    expect(t.start.x).toBe(0);
+    expect(t.start.y).toBe(0);
+    expect(t.start.heading).toBeCloseTo(0, 12);
+  });
+
+  it('every edge vertex is exactly 6 m from the lines of both adjacent centerline segments', () => {
+    const n = t.centerline.length;
+    for (let i = 0; i < n; i++) {
+      for (const edge of [t.leftEdge, t.rightEdge]) {
+        const p = edge[i]!;
+        expect(distToSegmentLine(t, i, p)).toBeCloseTo(6, 6);
+        expect(distToSegmentLine(t, wrapIndex(i - 1, n), p)).toBeCloseTo(6, 6);
+      }
+    }
+  });
+
+  it('is driven counter-clockwise on screen (mirror of the training track): the RIGHT edge is the longer outer loop', () => {
+    const perimeter = (pts: readonly { x: number; y: number }[]) =>
+      pts.reduce((s, p, i) => {
+        const q = pts[(i + 1) % pts.length]!;
+        return s + Math.hypot(q.x - p.x, q.y - p.y);
+      }, 0);
+    expect(perimeter(t.rightEdge)).toBeGreaterThan(perimeter(t.leftEdge));
+    // and the loop lies above the start line (negative y = screen-up), unlike training (below)
+    expect(t.bounds.minY).toBeLessThan(-100);
+    expect(t.bounds.maxY).toBeLessThan(10);
   });
 
   it('segments are short enough for the localized nearest-segment search (≤ 6 m)', () => {

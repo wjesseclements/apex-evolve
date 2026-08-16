@@ -4,7 +4,7 @@ import { createCarState } from '../physics/car.ts';
 import { SQUARE } from '../testing/fixtures.ts';
 import { isInsideTrack } from '../track/collision.ts';
 import { buildTrack } from '../track/track.ts';
-import { TRAINING_TRACK } from '../track/tracks.ts';
+import { HELDOUT_TRACK, TRAINING_TRACK } from '../track/tracks.ts';
 import { castRay, findContainingQuad } from './raycast.ts';
 import { castCarRays, normalizeRay, senseCar } from './sensors.ts';
 
@@ -159,9 +159,11 @@ describe('sensors — car rays and NN inputs', () => {
   });
 });
 
-describe('sensors — training track invariants', () => {
+describe.each([
+  ['training', TRAINING_TRACK],
+  ['heldout', HELDOUT_TRACK],
+])('sensors — %s track invariants', (_name, t) => {
   it('every ray from every centerline vertex ends on the surface (or at range) and one step beyond is off it', () => {
-    const t = TRAINING_TRACK;
     const cfg = DEFAULT_SIM;
     let hits = 0;
     let misses = 0;

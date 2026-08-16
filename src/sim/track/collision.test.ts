@@ -10,7 +10,7 @@ import {
 } from './collision.ts';
 import { buildTrack, type Track } from './track.ts';
 import { SQUARE } from '../testing/fixtures.ts';
-import { TRAINING_TRACK } from './tracks.ts';
+import { HELDOUT_TRACK, TRAINING_TRACK } from './tracks.ts';
 
 const square: Track = buildTrack(SQUARE);
 
@@ -66,9 +66,11 @@ describe('isInsideTrack — square loop', () => {
   });
 });
 
-describe('localized search agrees with the full scan', () => {
-  it('training track: hinted nearestSegment/isInsideTrack match unhinted for a sweep of points', () => {
-    const t = TRAINING_TRACK;
+describe.each([
+  ['training', TRAINING_TRACK],
+  ['heldout', HELDOUT_TRACK],
+])('localized search agrees with the full scan — %s', (_name, t) => {
+  it('hinted nearestSegment/isInsideTrack match unhinted for a sweep of points', () => {
     const n = t.centerline.length;
     let checked = 0;
     for (let i = 0; i < n; i++) {

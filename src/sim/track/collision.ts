@@ -110,10 +110,19 @@ export function pointInSegmentQuad(track: Track, i: number, p: Vec2): boolean {
   const s1 = side(q1, q2, p);
   const s2 = side(q2, q3, p);
   const s3 = side(q3, q0, p);
-  const allNonNeg = s0 >= 0 && s1 >= 0 && s2 >= 0 && s3 >= 0;
-  const allNonPos = s0 <= 0 && s1 <= 0 && s2 <= 0 && s3 <= 0;
+  // A point exactly on an edge has a cross product of ±1e-15 rather than 0; without
+  // the tolerance a point on the boundary shared by two quads could be rejected by
+  // BOTH (found by the held-out track sweep test). ON_EDGE_EPS is in m² (cross
+  // product units) — 1e-9 m² is far below any physical scale here.
+  const allNonNeg =
+    s0 >= -ON_EDGE_EPS && s1 >= -ON_EDGE_EPS && s2 >= -ON_EDGE_EPS && s3 >= -ON_EDGE_EPS;
+  const allNonPos =
+    s0 <= ON_EDGE_EPS && s1 <= ON_EDGE_EPS && s2 <= ON_EDGE_EPS && s3 <= ON_EDGE_EPS;
   return allNonNeg || allNonPos;
 }
+
+/** Tolerance for "on the quad edge" (m²). */
+const ON_EDGE_EPS = 1e-9;
 
 /** Cross product sign of (b − a) × (p − a): which side of line ab the point p is on. */
 function side(a: Vec2, b: Vec2, p: Vec2): number {

@@ -176,8 +176,74 @@ function round(v: number): number {
   return Math.round(v * 1000) / 1000;
 }
 
+/**
+ * "heldout" — never used for training in the default run. Counter-clockwise
+ * (left-hand turns dominate — the mirror of the training track's right-hand
+ * bias) with one right-hand kink, a 100 m straight, and a tight R = 16 corner.
+ * Straights B (west) and C (south) are solved so the loop closes exactly.
+ */
+function heldoutDef(): TrackDef {
+  const R1 = 34;
+  const R2 = 16; // the tight one
+  const R3 = 20; // the right-hand kink
+  const R4 = 20;
+  const R5 = 28;
+  const R6 = 28;
+  const A = 100; // the long straight, east
+  const s1 = 20; // north after T1
+  const s2 = 30; // west between T2 and T3
+  const s3 = 14; // north after the kink
+  const segs = (B: number, C: number): Segment[] => [
+    straight(A),
+    arc(R1, -90), // → north
+    straight(s1),
+    arc(R2, -90), // → west
+    straight(s2),
+    arc(R3, 90), // right-hand kink → north
+    straight(s3),
+    arc(R4, -90), // → west
+    straight(B),
+    arc(R5, -90), // → south
+    straight(C),
+    arc(R6, -90), // → east, back at start
+  ];
+  const walk = (B: number, C: number): { x: number; y: number } => {
+    let x = 0;
+    let y = 0;
+    let h = 0;
+    for (const s of segs(B, C)) {
+      if (s.kind === 'straight') {
+        x += Math.cos(h) * s.length;
+        y += Math.sin(h) * s.length;
+      } else {
+        const sweep = (s.degrees * Math.PI) / 180;
+        const sign = Math.sign(sweep);
+        const cx = x - Math.sin(h) * s.radius * sign;
+        const cy = y + Math.cos(h) * s.radius * sign;
+        const h2 = h + sweep;
+        x = cx + Math.sin(h2) * s.radius * sign;
+        y = cy - Math.cos(h2) * s.radius * sign;
+        h = h2;
+      }
+    }
+    return { x, y };
+  };
+  const e0 = walk(0, 0);
+  const B = e0.x; // west straight removes B from x
+  const C = -e0.y; // south straight adds C to y (y-down)
+  if (B <= 0 || C <= 0)
+    throw new Error(`heldout layout does not close with positive straights: B=${B} C=${C}`);
+  return {
+    name: 'heldout',
+    width: 12,
+    start: { x: 0, y: 0, heading: 0 },
+    segments: segs(B, C),
+    spacing: 4,
+  };
+}
+
 const which = process.argv[2] ?? 'training';
-const defs: Record<string, () => TrackDef> = { training: trainingDef };
+const defs: Record<string, () => TrackDef> = { training: trainingDef, heldout: heldoutDef };
 const make = defs[which];
 if (!make) {
   process.stderr.write(`unknown track '${which}'; known: ${Object.keys(defs).join(', ')}\n`);

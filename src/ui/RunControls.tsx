@@ -2,7 +2,8 @@ import { useRef, useState } from 'react';
 import { DEFAULT_GA, DEFAULT_NN } from '../sim/config.ts';
 import { injectGenome, setGaConfig, type Evolution } from '../sim/engine/evolution.ts';
 import { buildGenomeExport, parseGenomeExport } from '../sim/nn/genomeIo.ts';
-import { parseSeed, useUiStore } from './store.ts';
+import { TRACK_IDS, TRACKS, type TrackId } from '../sim/track/tracks.ts';
+import { parseSeed, syncUrl, useUiStore } from './store.ts';
 
 /**
  * Run controls (SPEC): restart with seed input, live mutation-rate slider and
@@ -23,8 +24,17 @@ export function RunControls({
   const mutationRate = useUiStore((s) => s.mutationRate);
   const crossoverEnabled = useUiStore((s) => s.crossoverEnabled);
   const notice = useUiStore((s) => s.notice);
-  const { setSeed, setMutationRate, setCrossoverEnabled, setNotice, setSelection } =
-    useUiStore.getState();
+  const trackId = useUiStore((s) => s.trackId);
+  const {
+    setSeed,
+    setMutationRate,
+    setCrossoverEnabled,
+    setNotice,
+    setSelection,
+    setTrackId,
+    setPendingGenome,
+  } = useUiStore.getState();
+  const otherTrack: TrackId = trackId === 'training' ? 'heldout' : 'training';
   const [seedText, setSeedText] = useState(String(seed));
   const fileRef = useRef<HTMLInputElement | null>(null);
 
@@ -41,13 +51,26 @@ export function RunControls({
     const s = parseSeed(seedText);
     setSeed(s);
     setSeedText(String(s));
-    if (typeof window !== 'undefined') {
-      const url = new URL(window.location.href);
-      url.searchParams.set('seed', String(s));
-      window.history.replaceState(null, '', url.toString());
-    }
+    syncUrl(s, trackId);
     setNotice(null);
     onRestart();
+  };
+
+  const switchTrack = (id: TrackId) => {
+    if (id === trackId) return;
+    setTrackId(id); // recreates the session on the new track with the current seed/knobs
+    syncUrl(seed, id);
+    setNotice(null);
+  };
+
+  const testOnOtherTrack = () => {
+    if (!evolution || !evolution.bestEver) {
+      setNotice('No best genome yet — wait for the first generation to finish.');
+      return;
+    }
+    setPendingGenome(new Float32Array(evolution.bestEver.genome));
+    setTrackId(otherTrack);
+    syncUrl(seed, otherTrack);
   };
 
   const exportBest = () => {
@@ -119,6 +142,35 @@ export function RunControls({
         )}
       </h2>
       <div className="run__row">
+        <label className="inspector__label" htmlFor="track">
+          Track
+        </label>
+        <select
+          id="track"
+          className="run__input"
+          value={trackId}
+          onChange={(e) => {
+            const v = e.target.value;
+            if (v === 'training' || v === 'heldout') switchTrack(v);
+          }}
+        >
+          {TRACK_IDS.map((id) => (
+            <option key={id} value={id}>
+              {id === 'training'
+                ? 'A — training (440 m, clockwise)'
+                : 'B — held-out (509 m, counter-clockwise)'}
+            </option>
+          ))}
+        </select>
+        <button
+          type="button"
+          onClick={testOnOtherTrack}
+          title={`Restart on track ${otherTrack} with this run's best genome as car #0`}
+        >
+          Test best on {otherTrack === 'heldout' ? 'B' : 'A'}
+        </button>
+      </div>
+      <div className="run__row">
         <label className="inspector__label" htmlFor="seed">
           Seed
         </label>
@@ -178,9 +230,11 @@ export function RunControls({
         <span className="inspector__val">{crossoverEnabled ? 'on' : 'off'}</span>
       </div>
       <p className="hud__conv">
-        Knobs apply at the next generation. Changing them mid-run (or importing a genome) marks the
-        run modified: the seed alone no longer reproduces it. Defaults: mutation{' '}
-        {DEFAULT_GA.mutationRate}, crossover {DEFAULT_GA.crossoverEnabled ? 'on' : 'off'}.
+        Knobs apply at the next generation. Changing them mid-run (or importing a genome, or
+        carrying one to the other track) marks the run modified: the seed alone no longer reproduces
+        it. Defaults: mutation {DEFAULT_GA.mutationRate}, crossover{' '}
+        {DEFAULT_GA.crossoverEnabled ? 'on' : 'off'}. Track {TRACKS[trackId].name}:{' '}
+        {TRACKS[trackId].totalLength.toFixed(0)} m.
       </p>
       <div className="controls">
         <button type="button" onClick={exportBest}>

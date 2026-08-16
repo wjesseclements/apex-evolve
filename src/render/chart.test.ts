@@ -34,9 +34,10 @@ describe('layoutFitnessChart', () => {
     expect(L.xTicks[0]!.gen).toBe(0);
   });
 
-  it('handles an empty and a single-point history without NaN', () => {
+  it('handles an empty and a single-point history without NaN, with integer generation ticks', () => {
     const e = layoutFitnessChart([], 300, 150);
     expect(e.best).toEqual([]);
+    expect(e.xTicks.map((t) => t.gen)).toEqual([0, 1]);
     expect(Number.isFinite(e.yMax)).toBe(true);
     const one = layoutFitnessChart([{ generation: 0, best: 5, mean: 1 }], 300, 150);
     expect(one.best).toHaveLength(1);
