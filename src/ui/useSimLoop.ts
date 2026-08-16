@@ -70,6 +70,7 @@ export function useSimLoop(
     if (!ctx) return;
     const session = createSession();
     sessionRef.current = session;
+    useUiStore.getState().onRunRestarted();
 
     let raf = 0;
     let last = performance.now();
@@ -130,6 +131,22 @@ export function useSimLoop(
 
       const world = session.world();
       const generation = session.generation();
+      // Landing experience: the run starts fast; on its first lap it slows to
+      // real time once (only if the visitor never chose a speed themselves).
+      const evo = session.evolution();
+      if (
+        evo &&
+        evo.bestLapEver &&
+        !ui.autoSlowed &&
+        !ui.speedTouched &&
+        session.mode === 'evolve'
+      ) {
+        useUiStore
+          .getState()
+          .autoSlow(
+            `First lap at generation ${evo.bestLapEver.generation} — slowing to real time so you can watch. Keys 1–4 (or the buttons) set the speed.`,
+          );
+      }
       // Selection survives only while its car is alive and the generation is unchanged.
       const sel = resolveSelection(ui.selection, world, generation);
       if (sel !== ui.selection) useUiStore.getState().setSelection(sel);
@@ -171,7 +188,9 @@ export function useSimLoop(
 
   const reset = useCallback(() => {
     sessionRef.current?.reset();
-    useUiStore.getState().setSelection(null);
+    const st = useUiStore.getState();
+    st.setSelection(null);
+    st.onRunRestarted();
   }, []);
   const clickAt = useCallback((x: number, y: number) => {
     const session = sessionRef.current;

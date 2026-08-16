@@ -471,3 +471,91 @@ kbd {
   color: #ffd166;
   border-color: #6b5a25;
 }
+
+.canvas-wrap {
+  position: relative;
+}
+
+.toast {
+  position: absolute;
+  right: 0.75rem;
+  bottom: 0.75rem;
+  z-index: 2;
+  max-width: min(90%, 640px);
+  display: flex;
+  gap: 0.75rem;
+  align-items: center;
+  background: rgba(23, 26, 33, 0.95);
+  border: 1px solid #6b5a25;
+  color: #ffd166;
+  border-radius: 8px;
+  padding: 0.55rem 0.8rem;
+  font-size: 0.9rem;
+}
+
+.toast__close {
+  background: transparent;
+  border: 0;
+  color: var(--muted);
+  font-size: 1.1rem;
+  cursor: pointer;
+  line-height: 1;
+}
+
+.explainer {
+  background: var(--panel);
+  border: 1px solid #262a33;
+  border-radius: 8px;
+  padding: 0.6rem 0.9rem;
+  font-size: 0.85rem;
+  line-height: 1.4;
+}
+
+.explainer__summary {
+  cursor: pointer;
+  font-weight: 600;
+  color: var(--fg);
+}
+
+.explainer p {
+  margin: 0.5rem 0;
+}
+
+.explainer__legend {
+  color: var(--muted);
+}
+
+.explainer__presets a,
+.hint a {
+  color: var(--right);
+}
+
+.swatch {
+  display: inline-block;
+  width: 10px;
+  height: 10px;
+  border-radius: 2px;
+  vertical-align: middle;
+  margin-right: 0.25rem;
+}
+
+.swatch--leader {
+  background: #ffd166;
+}
+
+.swatch--alive {
+  background: rgba(124, 252, 0, 0.6);
+}
+
+.swatch--dead {
+  background: rgba(138, 44, 44, 0.8);
+}
+
+.hint {
+  margin: 0 0 0.75rem;
+  padding: 0.5rem 0.7rem;
+  border-left: 3px solid #ffd166;
+  background: rgba(255, 209, 102, 0.06);
+  font-size: 0.85rem;
+  line-height: 1.4;
+}
