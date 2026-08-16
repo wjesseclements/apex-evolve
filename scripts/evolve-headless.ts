@@ -42,7 +42,7 @@ process.stdout.write(
   `seed=${String(seed)} crossover=${crossoverEnabled ? 'on' : 'off'} grip=${lateralAccelMax ?? 'off'} lapBonus=${lapBonus} pop=${DEFAULT_GA.populationSize} episode=${DEFAULT_SIM.episode.seconds}s stall=${DEFAULT_SIM.episode.stallSeconds ?? 'off'}s\n`,
 );
 process.stdout.write(
-  'gen |   best |   mean | median | crash | stall | laps | ticks | bestlap |   ms\n',
+  'gen |   best |   mean | median | bestprog | crash | stall | laps | ticks | bestlap |   ms\n',
 );
 const t0 = performance.now();
 for (let g = 0; g < generations; g++) {
