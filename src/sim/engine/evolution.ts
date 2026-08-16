@@ -24,6 +24,7 @@ import { lapsOf } from '../track/progress.ts';
 import type { Track } from '../track/track.ts';
 import {
   allCarsDead,
+  bestLapSeconds,
   createWorld,
   isEpisodeOver,
   stepWorld,
@@ -54,6 +55,14 @@ export interface GenerationRecord {
   readonly bestIndex: number;
   /** Ticks the episode lasted. */
   readonly ticks: number;
+  /** Fastest completed lap in the generation, sim seconds, or null if no car lapped. */
+  readonly bestLapTime: number | null;
+}
+
+export interface BestLap {
+  readonly seconds: number;
+  readonly generation: number;
+  readonly carIndex: number;
 }
 
 export interface BestEver {
@@ -71,6 +80,7 @@ export interface Evolution {
   world: World;
   history: GenerationRecord[];
   bestEver: BestEver | null;
+  bestLapEver: BestLap | null;
   /** Scratch buffers reused every tick (never part of the observable state). */
   readonly out: Float64Array;
   readonly scratch: Float64Array;
@@ -88,6 +98,7 @@ export function createEvolution(track: Track, cfg: EvolutionConfig): Evolution {
     world: createWorld(track, cfg.sim, population.length),
     history: [],
     bestEver: null,
+    bestLapEver: null,
     out: new Float64Array(cfg.nn.outputs),
     scratch: createScratch(cfg.nn),
   };
@@ -151,6 +162,15 @@ export function finishGeneration(evo: Evolution): GenerationRecord {
   const sorted = [...fits].sort((a, b) => a - b);
   const n = fits.length;
   const bestIndex = leaderIndex(evo.world);
+  let bestLapTime: number | null = null;
+  let bestLapCar = -1;
+  cars.forEach((c, i) => {
+    const t = bestLapSeconds(c, evo.cfg.sim.physics.dt);
+    if (t !== null && (bestLapTime === null || t < bestLapTime)) {
+      bestLapTime = t;
+      bestLapCar = i;
+    }
+  });
   const record: GenerationRecord = {
     generation: evo.generation,
     best: fits[bestIndex] ?? 0,
@@ -161,8 +181,12 @@ export function finishGeneration(evo: Evolution): GenerationRecord {
     lapCompletions: cars.filter((c) => lapsOf(c.progress, evo.world.checkpoints) >= 1).length,
     bestIndex,
     ticks: evo.world.tick,
+    bestLapTime,
   };
   evo.history.push(record);
+  if (bestLapTime !== null && (evo.bestLapEver === null || bestLapTime < evo.bestLapEver.seconds)) {
+    evo.bestLapEver = { seconds: bestLapTime, generation: evo.generation, carIndex: bestLapCar };
+  }
   const bestGenome = evo.population[bestIndex];
   if (bestGenome && (evo.bestEver === null || record.best > evo.bestEver.fitness)) {
     evo.bestEver = {

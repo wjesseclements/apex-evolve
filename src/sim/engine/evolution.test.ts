@@ -203,6 +203,26 @@ describe('golden generation record — BIT-EXACT across engines', () => {
   }, 60000);
 });
 
+describe('lap times', () => {
+  it('records bestLapTime per generation and bestLapEver once cars lap; null before', () => {
+    const evo = createEvolution(TRAINING_TRACK, CFG);
+    runGenerations(evo, 9); // gens 0–8: first laps at gen 7 for seed 42
+    expect(evo.history[0]!.bestLapTime).toBeNull();
+    const first = evo.history.findIndex((r) => r.lapCompletions > 0);
+    expect(first).toBeGreaterThan(0);
+    const t = evo.history[first]!.bestLapTime;
+    expect(t).not.toBeNull();
+    // A 440 m lap at ≤ 30 m/s from a standing start takes > 14.6 s and < 30 s.
+    expect(t!).toBeGreaterThan(14);
+    expect(t!).toBeLessThan(30);
+    expect(evo.bestLapEver).not.toBeNull();
+    expect(evo.bestLapEver!.seconds).toBe(
+      Math.min(...evo.history.filter((r) => r.bestLapTime !== null).map((r) => r.bestLapTime!)),
+    );
+    expect(evo.bestLapEver!.generation).toBeGreaterThanOrEqual(first);
+  }, 120000);
+});
+
 describe('square track smoke', () => {
   it('runs on a different track without error', () => {
     const evo = createEvolution(buildTrack(SQUARE), {
@@ -225,4 +245,5 @@ const GOLDEN_GEN3: GenerationRecord = {
   lapCompletions: 0,
   bestIndex: 94,
   ticks: 617,
+  bestLapTime: null,
 };
