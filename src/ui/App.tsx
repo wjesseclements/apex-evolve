@@ -137,10 +137,12 @@ export function App() {
             showSensors={showSensors}
             paused={paused}
             speed={speed}
+            runControls={
+              mode === 'evolve' ? (
+                <RunControls evolution={sim.hud?.evolution ?? null} onRestart={reset} />
+              ) : undefined
+            }
           />
-          {mode === 'evolve' && (
-            <RunControls evolution={sim.hud?.evolution ?? null} onRestart={reset} />
-          )}
           <div className="controls">
             <button type="button" onClick={reset}>
               {mode === 'evolve' ? 'Restart evolution (R)' : 'Reset car (R)'}

@@ -12,8 +12,23 @@ checkpoint-based progress metric that will be its fitness. No learning yet. See 
 ## Try it
 
 **Evolve** (default): watch the population learn. The yellow car is the current
-leader; dim red cars are dead. <kbd>R</kbd> restarts the run with the default
-seed. **Drive** (<kbd>M</kbd> or the toggle): race the algorithm yourself —
+leader (or the car you clicked); dim red cars are dead. Speed <kbd>1</kbd>–<kbd>4</kbd>
+(1× / 4× / 16× / max), <kbd>space</kbd> pauses, <kbd>R</kbd> restarts the run.
+Click any living car to inspect it (steering / throttle / brake bars, speed,
+fitness; <kbd>Esc</kbd> or click empty track to deselect). The chart shows best
+and mean fitness per generation. Type a seed and press Enter to restart with it —
+the URL updates to `?seed=…`, and because the whole simulation is
+engine-independent, that link replays the exact same evolution for anyone.
+The mutation-rate slider and crossover toggle apply live at the next
+generation; changing them mid-run (or importing a genome) marks the run
+**modified**, meaning the seed alone no longer reproduces it — the badge says
+so, and so does the export file. **Export best genome** downloads a JSON
+document with the 112 weights plus honest metadata (seed, GA config,
+generation, fitness, `modified`); **Import genome…** drops a genome into car #0
+of a restarted episode and selects it, so you can watch a saved champion drive
+— identically, every time.
+
+**Drive** (<kbd>M</kbd> or the toggle): race the algorithm yourself —
 arrow keys drive the car: <kbd>↑</kbd> throttle, <kbd>↓</kbd> brake,
 <kbd>←</kbd>/<kbd>→</kbd> steer. <kbd>R</kbd> resets after a crash,
 <kbd>S</kbd> toggles the sensor rays, <kbd>D</kbd> toggles the debug overlay
@@ -100,7 +115,8 @@ src/sim/     pure, headless simulation — no DOM, no timers, no Math.random, no
                and Evolution (episodes → scoring → next generation, history)
 src/render/  Canvas 2D drawing; depends on sim/ only
 src/ui/      React chrome + the rAF/accumulator loop (the only place wall-clock time exists);
-             Evolve / Drive sessions
+             Evolve / Drive sessions, zustand UI store, tick planner (speed/pause), inspector,
+             run controls (seed, knobs, genome export/import), fitness chart
 scripts/     gen-track.ts (track authoring), evolve-headless.ts (learning-curve table), CI purity grep
 docs/        CONVENTIONS.md — locked coordinate conventions
 ```
