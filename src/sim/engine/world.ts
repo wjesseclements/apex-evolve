@@ -26,10 +26,14 @@ export interface Car {
   readonly state: CarState;
   /** Last controls applied to this car (for telemetry / rendering). */
   readonly controls: CarControls;
-  /** False once the car has touched a track edge; it then freezes in place. */
+  /** False once the car has died (wall contact or stall); it then freezes in place. */
   readonly alive: boolean;
-  /** Tick index at which the car crashed, or null while alive. */
+  /** Tick index at which the car died, or null while alive. */
   readonly crashedAtTick: number | null;
+  /** Why the car died: 'wall' = touched a track edge, 'stall' = idle past the stall rule. */
+  readonly deathCause: 'wall' | 'stall' | null;
+  /** Consecutive ticks spent below the stall speed threshold. */
+  readonly stallTicks: number;
   /** Nearest centerline segment last tick — hint for the localized collision search. */
   readonly segmentHint: number;
   /**
@@ -63,6 +67,8 @@ export function spawnCar(track: Track, cfg: SimConfig, checkpoints: Checkpoints)
     controls: NEUTRAL_CONTROLS,
     alive: true,
     crashedAtTick: null,
+    deathCause: null,
+    stallTicks: 0,
     segmentHint: 0,
     sensors: senseCar(track, state, 0, cfg),
     progress: initialProgress(track, checkpoints, state, 0),
@@ -94,7 +100,12 @@ export function resetWorld(world: World): World {
 /**
  * Advance one car by one tick. Dead cars are returned unchanged (frozen).
  * A car that leaves the track this tick keeps the state that put it there —
- * so it renders touching the wall — and is marked dead.
+ * so it renders touching the wall — and is marked dead ('wall'). A car idle
+ * past the stall rule dies in place ('stall').
+ *
+ * CAR-GHOST INVARIANT: cars never interact. There is no inter-car collision;
+ * all cars spawn on the same start pose and may overlap freely for the whole
+ * episode. Each car sees only the track (rays) and its own speed.
  */
 export function stepCarOnTrack(
   car: Car,
@@ -106,14 +117,21 @@ export function stepCarOnTrack(
   if (!car.alive) return car;
   const state = stepCar(car.state, controls, cfg.physics);
   const hit = carCollides(track, state, cfg.physics, car.segmentHint);
+  const stallTicks = state.speed < cfg.episode.stallSpeed ? car.stallTicks + 1 : 0;
+  const stalled =
+    cfg.episode.stallSeconds !== null &&
+    stallTicks * cfg.physics.dt >= cfg.episode.stallSeconds - 1e-9;
+  const deathCause: Car['deathCause'] = hit.collided ? 'wall' : stalled ? 'stall' : null;
   return {
     state,
     controls,
-    alive: !hit.collided,
-    crashedAtTick: hit.collided ? null : car.crashedAtTick,
+    alive: deathCause === null,
+    crashedAtTick: car.crashedAtTick,
+    deathCause,
+    stallTicks,
     segmentHint: hit.segment,
-    // A car that just died keeps its previous (on-track) reading; sensing from
-    // an off-track origin would report all-zero rays.
+    // A car that just hit the wall keeps its previous (on-track) reading;
+    // sensing from an off-track origin would report all-zero rays.
     sensors: hit.collided ? car.sensors : senseCar(track, state, hit.segment, cfg),
     // Progress is still credited for the tick of the crash: the car did travel there.
     progress: updateProgress(track, checkpoints, car.progress, state),

@@ -70,10 +70,22 @@ export const DEFAULT_PROGRESS: ProgressConfig = {
 export interface EpisodeConfig {
   /** Episode length in simulated seconds; when reached the world stops advancing. */
   readonly seconds: number;
+  /**
+   * Stall rule (approved Slice 2 deviation from SPEC, sim-time based): a car
+   * whose speed stays below `stallSpeed` for `stallSeconds` of simulated time
+   * is marked dead (cause 'stall'). Its progress/fitness is unchanged — the
+   * rule only stops idle cars from consuming the whole episode. `null`
+   * disables it (Drive mode does this).
+   */
+  readonly stallSeconds: number | null;
+  /** Speed threshold for the stall rule, m/s. */
+  readonly stallSpeed: number;
 }
 
 export const DEFAULT_EPISODE: EpisodeConfig = {
   seconds: 30,
+  stallSeconds: 3,
+  stallSpeed: 0.5,
 };
 
 /** Everything the simulation needs to run one world. */
